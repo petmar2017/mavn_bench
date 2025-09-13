@@ -1,21 +1,43 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
-import { documentApi, searchApi, processApi, healthApi } from './api';
-import { mockDocument, mockDocuments, mockSearchResults } from '../test/mocks';
+
+// Mock localStorage before importing api
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true
+});
 
 // Mock axios
 vi.mock('axios');
 
-// Mock the api instance
+// Mock the api instance with interceptors
 const mockApi = {
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
   delete: vi.fn(),
+  interceptors: {
+    request: {
+      use: vi.fn()
+    },
+    response: {
+      use: vi.fn()
+    }
+  }
 };
 
 // Override the create method to return our mock
 vi.mocked(axios).create = vi.fn(() => mockApi as any);
+
+// Now import api after mocks are set up
+import { documentApi, searchApi, processApi, healthApi } from './api';
+import { mockDocument, mockDocuments, mockSearchResults } from '../test/mocks';
 
 describe('API Service', () => {
   beforeEach(() => {
@@ -49,6 +71,40 @@ describe('API Service', () => {
 
         await expect(documentApi.uploadDocument(file)).rejects.toThrow('Upload failed');
       });
+
+      it('should handle actual backend upload response format with id field', async () => {
+        const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
+
+        // Test the actual response format from backend
+        const backendUploadResponse = {
+          id: 'doc-123',  // Backend returns 'id' field
+          metadata: {
+            document_id: 'doc-123',
+            name: 'test.pdf',
+            document_type: 'pdf',
+            version: 1,
+            size: 1024,
+            created_at: '2025-01-01T00:00:00',
+            updated_at: '2025-01-01T00:00:00',
+            user_id: 'user-123',
+            tags: [],
+            processing_status: 'completed'
+          },
+          content: {
+            raw_content: 'Test content',
+            formatted_content: 'Test content',
+            summary: null
+          }
+        };
+
+        mockApi.post.mockResolvedValueOnce({ data: backendUploadResponse });
+
+        const result = await documentApi.uploadDocument(file);
+
+        expect(result).toEqual(backendUploadResponse);
+        expect(result).toHaveProperty('id');  // Frontend expects this field
+        expect(result.id).toBe('doc-123');
+      });
     });
 
     describe('createDocument', () => {
@@ -78,6 +134,55 @@ describe('API Service', () => {
         const result = await documentApi.listDocuments();
 
         expect(result).toEqual([]);
+      });
+
+      it('should handle backend response format with documents wrapper', async () => {
+        // Test the actual backend response format
+        const backendResponse = {
+          documents: mockDocuments,
+          total: 2,
+          limit: 10,
+          offset: 0
+        };
+        mockApi.get.mockResolvedValueOnce({ data: backendResponse });
+
+        const result = await documentApi.listDocuments();
+
+        expect(mockApi.get).toHaveBeenCalledWith('/api/documents/', { params: undefined });
+        expect(result).toEqual(mockDocuments); // Should extract documents array
+      });
+
+      it('should handle documents with nested metadata/content structure', async () => {
+        // Test the actual nested structure from backend
+        const nestedDocuments = [{
+          metadata: {
+            document_id: 'doc-123',
+            name: 'test.pdf',
+            document_type: 'pdf',
+            version: 1,
+            size: 0,
+            created_at: '2025-01-01T00:00:00',
+            updated_at: '2025-01-01T00:00:00',
+            user_id: 'user-123',
+            tags: [],
+            processing_status: 'completed'
+          },
+          content: {
+            summary: 'Test summary'
+          }
+        }];
+
+        const backendResponse = {
+          documents: nestedDocuments,
+          total: 1,
+          limit: 10,
+          offset: 0
+        };
+        mockApi.get.mockResolvedValueOnce({ data: backendResponse });
+
+        const result = await documentApi.listDocuments();
+
+        expect(result).toEqual(nestedDocuments);
       });
     });
 
@@ -153,6 +258,38 @@ describe('API Service', () => {
 
         expect(mockApi.post).toHaveBeenCalledWith('/api/search/vector', searchQuery);
         expect(result).toEqual(mockSearchResults);
+      });
+
+      it('should handle actual backend search response format', async () => {
+        // Test the actual format returned by our backend
+        const backendSearchResults = [{
+          document_id: 'doc-123',
+          score: 0.85,
+          metadata: {
+            document_id: 'doc-123',
+            name: 'test.pdf',
+            document_type: 'pdf',
+            version: 1,
+            size: 0,
+            created_at: '2025-01-01T00:00:00',
+            updated_at: '2025-01-01T00:00:00',
+            user_id: 'user-123',
+            tags: [],
+            processing_status: 'completed'
+          },
+          highlights: ['...test...']
+        }];
+
+        mockApi.post.mockResolvedValueOnce({ data: backendSearchResults });
+
+        const result = await searchApi.vectorSearch(searchQuery);
+
+        expect(mockApi.post).toHaveBeenCalledWith('/api/search/vector', searchQuery);
+        expect(result).toEqual(backendSearchResults);
+        expect(result[0]).toHaveProperty('document_id');
+        expect(result[0]).toHaveProperty('score');
+        expect(result[0]).toHaveProperty('metadata');
+        expect(result[0]).toHaveProperty('highlights');
       });
     });
 

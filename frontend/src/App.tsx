@@ -78,7 +78,7 @@ function AppContent() {
 
   const handleDocumentSelect = (document: DocumentMessage) => {
     setSelectedDocument(document);
-    logger.debug('Document selected', { documentId: document.id, documentName: document.metadata.name });
+    logger.debug('Document selected', { documentId: document.metadata.document_id, documentName: document.metadata.name });
   };
 
   const handleSearchResultSelect = (result: any) => {

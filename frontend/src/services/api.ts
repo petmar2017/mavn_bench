@@ -43,6 +43,7 @@ export interface DocumentContent {
 }
 
 export interface DocumentMessage {
+  id?: string;  // ID field returned by upload endpoint
   metadata: DocumentMetadata;
   content: DocumentContent;
   tools?: string[];
@@ -92,8 +93,10 @@ export const documentApi = {
     return response.data;
   },
 
-  async deleteDocument(documentId: string) {
-    const response = await api.delete(`/api/documents/${documentId}`);
+  async deleteDocument(documentId: string, hardDelete: boolean = true) {
+    const response = await api.delete(`/api/documents/${documentId}`, {
+      params: { soft_delete: !hardDelete }
+    });
     return response.data;
   },
 };

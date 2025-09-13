@@ -3,6 +3,7 @@
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import asyncio
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from opentelemetry import trace
@@ -154,7 +155,7 @@ async def convert_pdf_to_markdown(
                     # Save as document if requested
                     if request and request.save_result:
                         metadata = DocumentMetadata(
-                            document_id=f"doc_{datetime.utcnow().timestamp()}",
+                            document_id=str(uuid.uuid4()),
                             document_type=DocumentType.MARKDOWN,
                             name=f"{file.filename}_converted.md",
                             created_user=user["user_id"],
@@ -524,7 +525,7 @@ async def transcribe_media(
             doc_id = None
             if request.save_as_document:
                 metadata = DocumentMetadata(
-                    document_id=f"doc_{datetime.utcnow().timestamp()}",
+                    document_id=str(uuid.uuid4()),
                     document_type=doc_type,
                     name=f"Transcription: {request.url[:50]}",
                     summary=f"Transcription of {doc_type.value} from {request.url}",
@@ -611,7 +612,7 @@ async def scrape_webpage(
             doc_id = None
             if request.save_as_document:
                 metadata = DocumentMetadata(
-                    document_id=f"doc_{datetime.utcnow().timestamp()}",
+                    document_id=str(uuid.uuid4()),
                     document_type=DocumentType.WEBPAGE,
                     name=scraped_content.get("title", f"Webpage: {request.url[:50]}"),
                     summary=scraped_content.get("description", f"Scraped content from {request.url}"),

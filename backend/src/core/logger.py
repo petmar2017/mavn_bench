@@ -28,8 +28,19 @@ class CentralizedLogger:
         self.logger.addHandler(json_handler)
     
     def _get_console_formatter(self) -> logging.Formatter:
-        """Human-readable console format"""
+        """Human-readable console format with colors"""
         class ConsoleFormatter(logging.Formatter):
+            # ANSI color codes
+            COLORS = {
+                'DEBUG': '\033[36m',    # Cyan
+                'INFO': '\033[32m',     # Green
+                'WARNING': '\033[33m',  # Yellow
+                'ERROR': '\033[31m',    # Red
+                'CRITICAL': '\033[35m', # Magenta
+            }
+            RESET = '\033[0m'
+            BOLD = '\033[1m'
+
             def format(self, record):
                 # Add default values for missing fields
                 record.trace_id = getattr(record, 'trace_id', 'no-trace')
@@ -37,12 +48,21 @@ class CentralizedLogger:
                 record.user_id = getattr(record, 'user_id', None)
                 record.session_id = getattr(record, 'session_id', None)
 
-                # Use the parent format method
-                return super().format(record)
+                # Add color to level name
+                levelname = record.levelname
+                if levelname in self.COLORS:
+                    record.levelname = f"{self.COLORS[levelname]}{self.BOLD}{levelname}{self.RESET}"
+
+                # Format the message
+                formatted = super().format(record)
+
+                # Reset levelname for other handlers
+                record.levelname = levelname
+                return formatted
 
         return ConsoleFormatter(
-            '%(asctime)s - %(name)s - %(levelname)s - [%(trace_id)s] - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            '%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s',
+            datefmt='%H:%M:%S'
         )
     
     def _get_json_formatter(self) -> logging.Formatter:

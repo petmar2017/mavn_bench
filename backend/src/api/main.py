@@ -99,6 +99,39 @@ async def root() -> Dict[str, str]:
     }
 
 
+@app.post("/api/client-logs")
+async def receive_client_logs(request: Dict[str, Any]) -> Dict[str, str]:
+    """Receive and log client-side logs from the frontend"""
+    logger = CentralizedLogger("ClientLogs")
+
+    logs = request.get("logs", [])
+    session_id = request.get("sessionId", "unknown")
+
+    for log_entry in logs:
+        level = log_entry.get("level", "info")
+        message = f"[Frontend] {log_entry.get('message', '')}"
+        context = log_entry.get("context", {})
+
+        # Add session ID to context
+        context["sessionId"] = session_id
+        context["url"] = log_entry.get("url", "")
+        context["timestamp"] = log_entry.get("timestamp", "")
+
+        # Log at appropriate level
+        if level == "debug":
+            logger.debug(message, context)
+        elif level == "info":
+            logger.info(message, context)
+        elif level == "warning":
+            logger.warning(message, context)
+        elif level == "error":
+            logger.error(message, context, exc_info=log_entry.get("stackTrace"))
+        else:
+            logger.info(message, context)
+
+    return {"status": "ok", "received": len(logs)}
+
+
 @app.get("/api/health")
 async def health_check() -> Dict[str, Any]:
     """Health check endpoint with service status"""

@@ -139,7 +139,12 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
           >
             <div className={styles.cardHeader}>
               <FileText size={20} className={styles.fileIcon} />
-              <div className={styles.cardTitle}>{doc.metadata.name}</div>
+              <div className={styles.cardTitle}>
+                {doc.metadata.name}
+                <div style={{ fontSize: '10px', color: '#666' }}>
+                  ID: {doc.metadata.document_id || 'undefined'}
+                </div>
+              </div>
             </div>
 
             <div className={styles.cardBody}>

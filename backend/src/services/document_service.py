@@ -1,6 +1,7 @@
 """Document service for CRUD operations and document management"""
 
 import asyncio
+import uuid
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 

@@ -3,6 +3,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import os
+import uuid
 import aiofiles
 from pathlib import Path
 
@@ -105,7 +106,7 @@ async def create_document(
         try:
             # Create document message
             metadata = DocumentMetadata(
-                document_id=f"doc_{datetime.utcnow().timestamp()}",
+                document_id=str(uuid.uuid4()),
                 document_type=request.document_type,
                 name=request.name,
                 summary=request.summary,
@@ -309,14 +310,14 @@ async def delete_document(
         logger.info(f"Document deleted: {document_id} (soft={soft_delete})")
 
 
-@router.get("/", response_model=DocumentListResponse)
+@router.get("/")
 async def list_documents(
     user: Dict = Depends(get_current_user),
     pagination: PaginationParams = Depends(get_pagination),
     service: DocumentService = Depends(get_document_service),
     document_type: Optional[DocumentType] = None,
     search: Optional[str] = None
-) -> DocumentListResponse:
+) -> Dict[str, Any]:
     """List documents with pagination
 
     Args:
@@ -351,28 +352,35 @@ async def list_documents(
                 if doc.document_type == document_type
             ]
 
-        # Convert to response format
-        doc_responses = [
-            DocumentResponse(
-                document_id=doc.document_id,
-                name=doc.name,
-                document_type=doc.document_type,
-                summary=doc.summary,
-                version=doc.version,
-                created_at=doc.created_at,
-                updated_at=doc.updated_at,
-                created_user=doc.created_user,
-                updated_user=doc.updated_user
-            )
-            for doc in documents[pagination.offset:pagination.offset + pagination.limit]
-        ]
+        # Convert to response format that matches frontend expectations
+        doc_responses = []
+        for doc in documents[pagination.offset:pagination.offset + pagination.limit]:
+            # Build the response in the format frontend expects
+            doc_response = {
+                "metadata": {
+                    "document_id": doc.document_id,
+                    "name": doc.name,
+                    "document_type": doc.document_type,
+                    "version": doc.version,
+                    "size": 0,  # Size not stored in simplified response
+                    "created_at": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
+                    "updated_at": doc.updated_at.isoformat() if hasattr(doc.updated_at, 'isoformat') else str(doc.updated_at),
+                    "user_id": doc.created_user,
+                    "tags": [],
+                    "processing_status": "completed"
+                },
+                "content": {
+                    "summary": doc.summary
+                }
+            }
+            doc_responses.append(doc_response)
 
-        return DocumentListResponse(
-            documents=doc_responses,
-            total=len(documents),
-            limit=pagination.limit,
-            offset=pagination.offset
-        )
+        return {
+            "documents": doc_responses,
+            "total": len(documents),
+            "limit": pagination.limit,
+            "offset": pagination.offset
+        }
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -452,7 +460,7 @@ async def upload_document(
 
                 # Create document
                 metadata = DocumentMetadata(
-                    document_id=f"doc_{datetime.utcnow().timestamp()}",
+                    document_id=str(uuid.uuid4()),
                     document_type=doc_type,
                     name=name or file.filename,
                     created_user=user["user_id"],
