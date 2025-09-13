@@ -1,13 +1,33 @@
 # Claude Code Guidelines for Mavn Bench Project
 
 ## Project Overview
-**Mavn Bench** is a generic document processing platform with MCP tool integration, strict service and factory patterns, and full OpenTelemetry observability. This document contains ALL guidelines for Claude Code to implement the server-side components.
+**Mavn Bench** is a generic document processing platform with MCP tool integration, strict service and factory patterns, and full OpenTelemetry observability. This document contains ALL guidelines for Claude Code to implement both frontend and backend components.
 
 ## Critical Project Information
 - **Location**: `/Users/petermager/Downloads/code/mavn_bench`
 - **GitHub**: https://github.com/petmar2017/mavn_bench
-- **Python Version**: 3.13+ (MUST use venv)
+- **Python Version**: 3.13+ (MUST use venv for backend)
+- **Node Version**: 18+ (for frontend)
 - **Current Phase**: Phase 2 (Storage Layer) - Phase 1 COMPLETED ✅
+
+## Frontend Technology Stack
+- **Framework**: React 19 with TypeScript
+- **Styling**: Plain CSS with CSS Modules (NO UI component libraries)
+- **Testing**: Vitest with React Testing Library
+- **Build Tool**: Vite
+- **State Management**: React hooks (useState, useEffect, etc.)
+- **HTTP Client**: Axios
+- **WebSocket**: Socket.IO Client
+- **Icons**: Lucide React
+
+### ⚠️ IMPORTANT Frontend Rules
+1. **NO UI Component Libraries**: Do NOT use Chakra UI, Material-UI, Ant Design, or any other component library
+2. **Use Native React**: All components must be built with plain React and HTML elements
+3. **CSS Modules Only**: Use CSS Modules for component styling (`.module.css` files)
+4. **Testing with Vitest**: Use Vitest for all frontend tests, not Jest
+5. **No CSS-in-JS**: Avoid styled-components, emotion, or any CSS-in-JS solutions
+6. **Utility Classes**: Use the global CSS utilities in `src/styles/globals.css`
+7. **Conditional Classes**: Use `classnames` package for conditional CSS classes
 
 ## Development Methodology
 

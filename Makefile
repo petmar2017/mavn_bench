@@ -62,10 +62,56 @@ dev-frontend: ## Start frontend in development mode
 	@echo "$(YELLOW)Starting frontend...$(NC)"
 	cd frontend && test -f package.json && $(NPM) start || echo "Frontend not setup"
 
+dev-backend-logs: ## Start backend with visible logs
+	@echo "$(YELLOW)Starting backend with logs...$(NC)"
+	cd backend && source $(VENV)/bin/activate && python -m uvicorn src.api.main:app --reload --port 8000 --host 0.0.0.0 --log-level debug
+
+dev-frontend-logs: ## Start frontend with visible logs
+	@echo "$(YELLOW)Starting frontend with logs...$(NC)"
+	cd frontend && npm run dev
+
+dev-logs: ## Start both services with visible logs (run in separate terminals)
+	@echo "$(YELLOW)Starting services with visible logs...$(NC)"
+	@echo "$(GREEN)Run 'make dev-backend-logs' in one terminal$(NC)"
+	@echo "$(GREEN)Run 'make dev-frontend-logs' in another terminal$(NC)"
+
+dev-all-logs: ## Start all services with logs in same terminal
+	@echo "$(YELLOW)Starting all services with logs...$(NC)"
+	@$(MAKE) stop-all
+	@sleep 2
+	@trap 'kill %1 %2' INT; \
+	(cd backend && source $(VENV)/bin/activate && python -m uvicorn src.api.main:app --reload --port 8000 --host 0.0.0.0 --log-level info 2>&1 | sed 's/^/[BACKEND] /') & \
+	(cd frontend && npm run dev 2>&1 | sed 's/^/[FRONTEND] /') & \
+	wait
+
+restart: ## Restart all services with logs (stops then starts)
+	@echo "$(YELLOW)Restarting all services...$(NC)"
+	@$(MAKE) stop-all
+	@sleep 2
+	@$(MAKE) dev-all-logs
+
+restart-clean: ## Clean restart - kills all processes on common ports
+	@echo "$(YELLOW)Performing clean restart...$(NC)"
+	@$(MAKE) stop-all
+	@echo "$(YELLOW)Cleaning up any remaining processes...$(NC)"
+	@for port in 8000 5173 5174 5175 5176 5177; do \
+		lsof -ti:$$port | xargs kill -9 2>/dev/null || true; \
+	done
+	@sleep 3
+	@$(MAKE) dev-all-logs
+
 stop-all: ## Stop all services
 	@echo "$(YELLOW)Stopping all services...$(NC)"
 	pkill -f "uvicorn" || true
-	pkill -f "npm start" || true
+	pkill -f "npm" || true
+	pkill -f "vite" || true
+	pkill -f "node.*vite" || true
+	lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+	lsof -ti:5174 | xargs kill -9 2>/dev/null || true
+	lsof -ti:5175 | xargs kill -9 2>/dev/null || true
+	lsof -ti:5176 | xargs kill -9 2>/dev/null || true
+	lsof -ti:5177 | xargs kill -9 2>/dev/null || true
 	$(DOCKER_COMPOSE) down || true
 	@echo "$(GREEN)All services stopped!$(NC)"
 

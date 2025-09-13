@@ -1,11 +1,6 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
-import { ChakraProvider } from '@chakra-ui/react';
-import { createSystem, defaultConfig } from '@chakra-ui/system';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-// Create the Chakra system
-const system = createSystem(defaultConfig);
 
 // Create a custom render function that includes providers
 const createTestQueryClient = () => new QueryClient({
@@ -26,11 +21,9 @@ const AllTheProviders: React.FC<AllTheProvidersProps> = ({ children }) => {
   const queryClient = createTestQueryClient();
 
   return (
-    <ChakraProvider value={system}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    </ChakraProvider>
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
   );
 };
 

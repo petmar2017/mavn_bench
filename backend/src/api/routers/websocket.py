@@ -149,6 +149,20 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Simple WebSocket endpoint for Socket.IO compatibility"""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(f"Echo: {data}")
+    except WebSocketDisconnect:
+        logger.info("Client disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+
+
 @router.websocket("/ws/documents")
 async def websocket_documents(
     websocket: WebSocket,

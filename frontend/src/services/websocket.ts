@@ -12,8 +12,8 @@ class WebSocketService {
     }
 
     this.socket = io(WS_URL, {
-      path: '/api/ws',
-      transports: ['websocket'],
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
       auth: {
         apiKey: apiKey || localStorage.getItem('apiKey'),
       },
@@ -47,6 +47,10 @@ class WebSocketService {
     }
   }
 
+  isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+
   on(event: string, callback: (data: any) => void) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
@@ -74,6 +78,18 @@ class WebSocketService {
   }
 
   // Document-specific events
+  onDocumentCreated(callback: (data: any) => void) {
+    return this.on('document:created', callback);
+  }
+
+  onDocumentUpdated(callback: (data: any) => void) {
+    return this.on('document:updated', callback);
+  }
+
+  onDocumentDeleted(callback: (data: any) => void) {
+    return this.on('document:deleted', callback);
+  }
+
   onDocumentProcessing(documentId: string, callback: (status: any) => void) {
     return this.on(`document:processing:${documentId}`, callback);
   }
@@ -84,6 +100,11 @@ class WebSocketService {
 
   onDocumentError(documentId: string, callback: (error: any) => void) {
     return this.on(`document:error:${documentId}`, callback);
+  }
+
+  // Processing events
+  onProcessingProgress(callback: (progress: any) => void) {
+    return this.on('processing:progress', callback);
   }
 
   // Search events

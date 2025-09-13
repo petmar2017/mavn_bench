@@ -1,27 +1,28 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 import { wsService } from './websocket';
 import { mockDocument, mockWebSocketEvents } from '../test/mocks';
 
 // Mock socket.io-client
-jest.mock('socket.io-client');
-const mockedIo = io as jest.MockedFunction<typeof io>;
+vi.mock('socket.io-client');
 
 describe('WebSocketService', () => {
-  let mockSocket: jest.Mocked<Socket>;
+  let mockSocket: any;
 
   beforeEach(() => {
     // Create a mock socket
     mockSocket = {
       connected: false,
-      on: jest.fn(),
-      off: jest.fn(),
-      emit: jest.fn(),
-      disconnect: jest.fn(),
-      connect: jest.fn(),
-    } as any;
+      on: vi.fn(),
+      off: vi.fn(),
+      emit: vi.fn(),
+      disconnect: vi.fn(),
+      connect: vi.fn(),
+      onAny: vi.fn(),
+    };
 
     // Mock io to return our mock socket
-    mockedIo.mockReturnValue(mockSocket);
+    vi.mocked(io).mockReturnValue(mockSocket);
 
     // Clear any existing listeners
     (wsService as any).listeners.clear();
@@ -29,14 +30,14 @@ describe('WebSocketService', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('connect', () => {
     it('should create a new socket connection', () => {
       wsService.connect();
 
-      expect(mockedIo).toHaveBeenCalledWith(
+      expect(io).toHaveBeenCalledWith(
         expect.stringContaining('ws://'),
         expect.objectContaining({
           transports: ['websocket'],
@@ -48,7 +49,7 @@ describe('WebSocketService', () => {
       wsService.connect();
       wsService.connect();
 
-      expect(mockedIo).toHaveBeenCalledTimes(1);
+      expect(io).toHaveBeenCalledTimes(1);
     });
 
     it('should set up event listeners', () => {
@@ -65,7 +66,7 @@ describe('WebSocketService', () => {
     });
 
     it('should handle connect event', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
       wsService.connect();
 
       // Get the connect handler and call it
@@ -78,7 +79,7 @@ describe('WebSocketService', () => {
     });
 
     it('should handle disconnect event', () => {
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation();
       wsService.connect();
 
       // Get the disconnect handler and call it
@@ -91,7 +92,7 @@ describe('WebSocketService', () => {
     });
 
     it('should handle error event', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
       wsService.connect();
 
       // Get the error handler and call it
@@ -134,7 +135,7 @@ describe('WebSocketService', () => {
   describe('event subscription', () => {
     describe('onDocumentCreated', () => {
       it('should subscribe to document created events', () => {
-        const callback = jest.fn();
+        const callback = vi.fn();
         const unsubscribe = wsService.onDocumentCreated(callback);
 
         // Simulate an event
@@ -154,7 +155,7 @@ describe('WebSocketService', () => {
 
     describe('onDocumentUpdated', () => {
       it('should subscribe to document updated events', () => {
-        const callback = jest.fn();
+        const callback = vi.fn();
         const unsubscribe = wsService.onDocumentUpdated(callback);
 
         wsService.connect();
@@ -172,7 +173,7 @@ describe('WebSocketService', () => {
 
     describe('onDocumentDeleted', () => {
       it('should subscribe to document deleted events', () => {
-        const callback = jest.fn();
+        const callback = vi.fn();
         const documentId = 'doc-123';
         const unsubscribe = wsService.onDocumentDeleted(callback);
 
@@ -191,7 +192,7 @@ describe('WebSocketService', () => {
 
     describe('onProcessingProgress', () => {
       it('should subscribe to processing progress events', () => {
-        const callback = jest.fn();
+        const callback = vi.fn();
         const progress = { document_id: 'doc-123', progress: 50, status: 'processing' };
         const unsubscribe = wsService.onProcessingProgress(callback);
 
@@ -210,7 +211,7 @@ describe('WebSocketService', () => {
 
     describe('onSystemNotification', () => {
       it('should subscribe to system notification events', () => {
-        const callback = jest.fn();
+        const callback = vi.fn();
         const notification = mockWebSocketEvents.systemNotification;
         const unsubscribe = wsService.onSystemNotification(callback);
 
@@ -240,7 +241,7 @@ describe('WebSocketService', () => {
       });
 
       it('should not emit events when not connected', () => {
-        const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+        const consoleSpy = vi.spyOn(console, 'warn').mockImplementation();
 
         wsService.emit('custom_event', { data: 'test' });
 
@@ -254,8 +255,8 @@ describe('WebSocketService', () => {
 
   describe('multiple listeners', () => {
     it('should support multiple listeners for the same event', () => {
-      const callback1 = jest.fn();
-      const callback2 = jest.fn();
+      const callback1 = vi.fn();
+      const callback2 = vi.fn();
 
       wsService.onDocumentCreated(callback1);
       wsService.onDocumentCreated(callback2);
@@ -269,8 +270,8 @@ describe('WebSocketService', () => {
     });
 
     it('should handle listener removal correctly', () => {
-      const callback1 = jest.fn();
-      const callback2 = jest.fn();
+      const callback1 = vi.fn();
+      const callback2 = vi.fn();
 
       const unsubscribe1 = wsService.onDocumentCreated(callback1);
       const unsubscribe2 = wsService.onDocumentCreated(callback2);
@@ -290,8 +291,8 @@ describe('WebSocketService', () => {
 
   describe('error handling', () => {
     it('should handle socket errors gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      const callback = jest.fn();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+      const callback = vi.fn();
 
       wsService.onDocumentCreated(callback);
       wsService.connect();

@@ -14,6 +14,21 @@ Development Methodology
   - Use Python 3.13.x, latest Node.js and latest React libraries when possible
   - always use the venv if it is available
 
+## Frontend Development Standards
+
+### React Component Requirements
+- **Use Native React Only**: Build all components with plain React and HTML elements
+- **NO UI Component Libraries**: Do NOT use Chakra UI, Material-UI, Ant Design, Bootstrap, or any other UI library
+- **TypeScript Required**: All React components must use TypeScript with proper type definitions
+- **Functional Components**: Use functional components with hooks (no class components)
+
+### Styling Requirements
+- **CSS Modules**: Use `.module.css` files for component-specific styles
+- **Global Utilities**: Leverage `src/styles/globals.css` for common utility classes
+- **NO CSS-in-JS**: Do not use styled-components, emotion, or any CSS-in-JS libraries
+- **Conditional Classes**: Use the `classnames` package for conditional CSS class application
+- **Responsive Design**: Implement responsive layouts using pure CSS (flexbox, grid)
+
 ## Testing Requirements
 
 ### Test-Driven Development (TDD)
@@ -25,9 +40,10 @@ Development Methodology
   - Test coverage minimum 80%
 - **React Frontend**
 
-  - Jest tests with strict TypeScript testing
-  - Same testing level as React core uses
+  - **Vitest** for all frontend testing (NOT Jest)
+  - Strict TypeScript testing with full type safety
   - Component testing with React Testing Library
+  - NO UI component library tests (no Chakra UI, Material-UI, etc.)
 - **General Testing Rules**
 
   - Create and maintain comprehensive test cases continuously

@@ -1,4 +1,4 @@
-import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '../test/utils';
 import userEvent from '@testing-library/user-event';
 import { SearchInterface } from './SearchInterface';
@@ -6,22 +6,20 @@ import { searchApi } from '../services/api';
 import { mockSearchResults } from '../test/mocks';
 
 // Mock the API
-jest.mock('../services/api', () => ({
+vi.mock('../services/api', () => ({
   searchApi: {
-    vectorSearch: jest.fn(),
-    fulltextSearch: jest.fn(),
-    graphSearch: jest.fn(),
-    hybridSearch: jest.fn(),
+    vectorSearch: vi.fn(),
+    fulltextSearch: vi.fn(),
+    graphSearch: vi.fn(),
+    hybridSearch: vi.fn(),
   },
 }));
 
-const mockedSearchApi = searchApi as jest.Mocked<typeof searchApi>;
-
 describe('SearchInterface', () => {
-  const mockOnResultSelect = jest.fn();
+  const mockOnResultSelect = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render search input and tabs', () => {
@@ -35,7 +33,7 @@ describe('SearchInterface', () => {
   });
 
   it('should perform vector search on button click', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -48,7 +46,7 @@ describe('SearchInterface', () => {
     await user.click(searchButton);
 
     await waitFor(() => {
-      expect(mockedSearchApi.vectorSearch).toHaveBeenCalledWith({
+      expect(searchApi.vectorSearch).toHaveBeenCalledWith({
         query: 'test query',
         limit: 20,
       });
@@ -62,7 +60,7 @@ describe('SearchInterface', () => {
   });
 
   it('should perform search on Enter key press', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -73,7 +71,7 @@ describe('SearchInterface', () => {
     await user.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(mockedSearchApi.vectorSearch).toHaveBeenCalledWith({
+      expect(searchApi.vectorSearch).toHaveBeenCalledWith({
         query: 'test query',
         limit: 20,
       });
@@ -81,7 +79,7 @@ describe('SearchInterface', () => {
   });
 
   it('should switch between search types', async () => {
-    mockedSearchApi.fulltextSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).fulltextSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -96,7 +94,7 @@ describe('SearchInterface', () => {
     await user.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(mockedSearchApi.fulltextSearch).toHaveBeenCalledWith({
+      expect(searchApi.fulltextSearch).toHaveBeenCalledWith({
         query: 'test query',
         limit: 20,
       });
@@ -104,7 +102,7 @@ describe('SearchInterface', () => {
   });
 
   it('should perform graph search when Graph tab is selected', async () => {
-    mockedSearchApi.graphSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).graphSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -118,7 +116,7 @@ describe('SearchInterface', () => {
     await user.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(mockedSearchApi.graphSearch).toHaveBeenCalledWith({
+      expect(searchApi.graphSearch).toHaveBeenCalledWith({
         query: 'test query',
         limit: 20,
       });
@@ -126,7 +124,7 @@ describe('SearchInterface', () => {
   });
 
   it('should perform hybrid search when Hybrid tab is selected', async () => {
-    mockedSearchApi.hybridSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).hybridSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -140,7 +138,7 @@ describe('SearchInterface', () => {
     await user.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(mockedSearchApi.hybridSearch).toHaveBeenCalledWith({
+      expect(searchApi.hybridSearch).toHaveBeenCalledWith({
         query: 'test query',
         limit: 20,
       });
@@ -149,7 +147,7 @@ describe('SearchInterface', () => {
 
   it('should show loading state while searching', async () => {
     // Mock a delayed response
-    mockedSearchApi.vectorSearch.mockImplementation(
+    vi.mocked(searchApi).vectorSearch.mockImplementation(
       () => new Promise(resolve => setTimeout(() => resolve(mockSearchResults), 100))
     );
 
@@ -172,7 +170,7 @@ describe('SearchInterface', () => {
 
   it('should handle search errors', async () => {
     const errorMessage = 'Search failed. Please try again.';
-    mockedSearchApi.vectorSearch.mockRejectedValueOnce(
+    vi.mocked(searchApi).vectorSearch.mockRejectedValueOnce(
       { response: { data: { detail: errorMessage } } }
     );
 
@@ -190,7 +188,7 @@ describe('SearchInterface', () => {
   });
 
   it('should clear search results when clear button is clicked', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -205,7 +203,7 @@ describe('SearchInterface', () => {
     });
 
     // Click clear button (X icon)
-    const clearButton = screen.getByRole('button', { name: '' }); // Button with X icon
+    const clearButton = screen.getByRole('button', { name: /clear search/i });
     await user.click(clearButton);
 
     // Results should be cleared
@@ -221,11 +219,11 @@ describe('SearchInterface', () => {
     const searchButton = screen.getByRole('button', { name: /search/i });
     await user.click(searchButton);
 
-    expect(mockedSearchApi.vectorSearch).not.toHaveBeenCalled();
+    expect(searchApi.vectorSearch).not.toHaveBeenCalled();
   });
 
   it('should handle result selection', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -250,7 +248,7 @@ describe('SearchInterface', () => {
   });
 
   it('should show result count', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -266,7 +264,7 @@ describe('SearchInterface', () => {
   });
 
   it('should show empty state when no results found', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce([]);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce([]);
 
     const user = userEvent.setup();
 
@@ -283,7 +281,7 @@ describe('SearchInterface', () => {
   });
 
   it('should display highlights in search results', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -305,7 +303,7 @@ describe('SearchInterface', () => {
       { ...mockSearchResults[2], score: 0.5 },  // Orange
     ];
 
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(resultsWithVariedScores);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(resultsWithVariedScores);
 
     const user = userEvent.setup();
 
@@ -323,7 +321,7 @@ describe('SearchInterface', () => {
   });
 
   it('should show document type badges', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -339,7 +337,7 @@ describe('SearchInterface', () => {
   });
 
   it('should show progress bar for scores', async () => {
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     const user = userEvent.setup();
 
@@ -374,7 +372,7 @@ describe('SearchInterface', () => {
 
   it('should clear error when new search is performed', async () => {
     // First search fails
-    mockedSearchApi.vectorSearch.mockRejectedValueOnce(
+    vi.mocked(searchApi).vectorSearch.mockRejectedValueOnce(
       { response: { data: { detail: 'Search failed' } } }
     );
 
@@ -391,7 +389,7 @@ describe('SearchInterface', () => {
     });
 
     // Second search succeeds
-    mockedSearchApi.vectorSearch.mockResolvedValueOnce(mockSearchResults);
+    vi.mocked(searchApi).vectorSearch.mockResolvedValueOnce(mockSearchResults);
 
     await user.clear(searchInput);
     await user.type(searchInput, 'successful query');

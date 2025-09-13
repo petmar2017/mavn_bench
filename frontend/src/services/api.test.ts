@@ -1,25 +1,25 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
 import { documentApi, searchApi, processApi, healthApi } from './api';
 import { mockDocument, mockDocuments, mockSearchResults } from '../test/mocks';
 
 // Mock axios
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+vi.mock('axios');
 
 // Mock the api instance
 const mockApi = {
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
+  get: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
 };
 
 // Override the create method to return our mock
-mockedAxios.create = jest.fn(() => mockApi as any);
+vi.mocked(axios).create = vi.fn(() => mockApi as any);
 
 describe('API Service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('documentApi', () => {

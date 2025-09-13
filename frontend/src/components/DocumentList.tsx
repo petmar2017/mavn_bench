@@ -1,32 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Box,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  TableContainer,
-  IconButton,
-  Badge,
-  Text,
-  HStack,
-  VStack,
-  Skeleton,
-  Alert,
-  AlertIcon,
-  AlertDescription,
-  useColorModeValue,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  useToast,
-} from '@chakra-ui/react';
-import { FileText, MoreVertical, Download, Trash2, Eye } from 'lucide-react';
-import { documentApi, DocumentMessage } from '../services/api';
+import { useEffect, useState } from 'react';
+import { FileText, Calendar, HardDrive, AlertCircle, Eye, Download, Trash2 } from 'lucide-react';
+import classNames from 'classnames';
+import { documentApi } from '../services/api';
+import type { DocumentMessage } from '../services/api';
 import { wsService } from '../services/websocket';
+import styles from './DocumentList.module.css';
 
 interface DocumentListProps {
   onDocumentSelect?: (document: DocumentMessage) => void;
@@ -37,17 +15,17 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
   const [documents, setDocuments] = useState<DocumentMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const toast = useToast();
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   const fetchDocuments = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const docs = await documentApi.listDocuments();
-      setDocuments(docs);
+      // Ensure docs is always an array
+      setDocuments(Array.isArray(docs) ? docs : []);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to fetch documents');
+      setDocuments([]); // Set empty array on error
     } finally {
       setIsLoading(false);
     }
@@ -70,44 +48,27 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
     };
   }, []);
 
-  const handleDelete = async (documentId: string) => {
-    try {
-      await documentApi.deleteDocument(documentId);
-      toast({
-        title: 'Document deleted',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
-      fetchDocuments();
-    } catch (err: any) {
-      toast({
-        title: 'Delete failed',
-        description: err.response?.data?.detail || 'Failed to delete document',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+  const handleDelete = async (documentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this document?')) {
+      try {
+        await documentApi.deleteDocument(documentId);
+        fetchDocuments();
+      } catch (err: any) {
+        console.error('Failed to delete document:', err);
+      }
     }
   };
 
-  const getStatusBadge = (status?: string) => {
-    const statusColors: Record<string, string> = {
-      processing: 'blue',
-      completed: 'green',
-      failed: 'red',
-      pending: 'gray',
-    };
-    const color = statusColors[status || 'pending'] || 'gray';
-    return (
-      <Badge colorScheme={color} variant="subtle">
-        {status || 'pending'}
-      </Badge>
-    );
+  const handleView = (doc: DocumentMessage, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDocumentSelect?.(doc);
   };
 
-  const getDocumentIcon = (type: string) => {
-    return <FileText size={16} />;
+  const handleDownload = async (doc: DocumentMessage, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // TODO: Implement download functionality
+    console.log('Download document:', doc.metadata.document_id);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -128,115 +89,109 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
     });
   };
 
+  const getDocumentTypeBadgeClass = (type: string) => {
+    const typeMap: Record<string, string> = {
+      pdf: styles.pdf,
+      word: styles.word,
+      excel: styles.excel,
+      json: styles.json,
+      csv: styles.csv,
+      markdown: styles.markdown,
+    };
+    return typeMap[type] || '';
+  };
+
   if (isLoading) {
     return (
-      <VStack spacing={3} align="stretch">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} height="60px" />
-        ))}
-      </VStack>
+      <div className={styles.loading}>
+        <div className={styles.spinner} />
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Alert status="error" borderRadius="lg">
-        <AlertIcon />
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className={styles.error}>
+        <AlertCircle size={20} className={styles.errorIcon} />
+        <span>{error}</span>
+      </div>
     );
   }
 
   if (documents.length === 0) {
     return (
-      <Box
-        p={8}
-        textAlign="center"
-        border="1px"
-        borderColor={borderColor}
-        borderRadius="lg"
-      >
-        <VStack spacing={3}>
-          <FileText size={48} color="gray" />
-          <Text fontSize="lg" fontWeight="medium">No documents yet</Text>
-          <Text color="gray.500">Upload your first document to get started</Text>
-        </VStack>
-      </Box>
+      <div className={styles.emptyState}>
+        <FileText size={48} className={styles.emptyIcon} />
+        <div className={styles.emptyTitle}>No documents yet</div>
+        <div className={styles.emptyText}>Upload a document to get started</div>
+      </div>
     );
   }
 
   return (
-    <TableContainer>
-      <Table variant="simple">
-        <Thead>
-          <Tr>
-            <Th>Name</Th>
-            <Th>Type</Th>
-            <Th>Size</Th>
-            <Th>Status</Th>
-            <Th>Modified</Th>
-            <Th width="50px"></Th>
-          </Tr>
-        </Thead>
-        <Tbody>
-          {documents.map((doc) => (
-            <Tr
-              key={doc.metadata.document_id}
-              _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}
-              cursor="pointer"
-              onClick={() => onDocumentSelect?.(doc)}
-            >
-              <Td>
-                <HStack spacing={2}>
-                  {getDocumentIcon(doc.metadata.document_type)}
-                  <Text fontWeight="medium">{doc.metadata.name}</Text>
-                </HStack>
-              </Td>
-              <Td>
-                <Badge variant="outline">{doc.metadata.document_type}</Badge>
-              </Td>
-              <Td>{formatFileSize(doc.metadata.size)}</Td>
-              <Td>{getStatusBadge(doc.metadata.processing_status)}</Td>
-              <Td>{formatDate(doc.metadata.updated_at)}</Td>
-              <Td>
-                <Menu>
-                  <MenuButton
-                    as={IconButton}
-                    icon={<MoreVertical size={16} />}
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <MenuList>
-                    <MenuItem icon={<Eye size={16} />} onClick={(e) => {
-                      e.stopPropagation();
-                      onDocumentSelect?.(doc);
-                    }}>
-                      View
-                    </MenuItem>
-                    <MenuItem icon={<Download size={16} />} onClick={(e) => {
-                      e.stopPropagation();
-                      // TODO: Implement download
-                    }}>
-                      Download
-                    </MenuItem>
-                    <MenuItem
-                      icon={<Trash2 size={16} />}
-                      color="red.500"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(doc.metadata.document_id);
-                      }}
-                    >
-                      Delete
-                    </MenuItem>
-                  </MenuList>
-                </Menu>
-              </Td>
-            </Tr>
-          ))}
-        </Tbody>
-      </Table>
-    </TableContainer>
+    <div className={styles.container}>
+      <div className={styles.grid}>
+        {documents.map((doc) => (
+          <div
+            key={doc.metadata.document_id}
+            className={styles.card}
+            onClick={() => onDocumentSelect?.(doc)}
+          >
+            <div className={styles.cardHeader}>
+              <FileText size={20} className={styles.fileIcon} />
+              <div className={styles.cardTitle}>{doc.metadata.name}</div>
+            </div>
+
+            <div className={styles.cardBody}>
+              <div className={styles.metadata}>
+                <span className={classNames(styles.badge, getDocumentTypeBadgeClass(doc.metadata.document_type))}>
+                  {doc.metadata.document_type.toUpperCase()}
+                </span>
+
+                <div className={styles.metadataItem}>
+                  <HardDrive size={12} className={styles.metadataIcon} />
+                  <span>{formatFileSize(doc.metadata.size || 0)}</span>
+                </div>
+
+                <div className={styles.metadataItem}>
+                  <Calendar size={12} className={styles.metadataIcon} />
+                  <span>{formatDate(doc.metadata.created_at)}</span>
+                </div>
+              </div>
+
+              {doc.content?.text && (
+                <div className={styles.contentPreview}>
+                  {doc.content.text.substring(0, 150)}...
+                </div>
+              )}
+
+              <div className={styles.actions}>
+                <button
+                  className={styles.actionButton}
+                  onClick={(e) => handleView(doc, e)}
+                  title="View document"
+                >
+                  <Eye size={16} /> View
+                </button>
+                <button
+                  className={styles.actionButton}
+                  onClick={(e) => handleDownload(doc, e)}
+                  title="Download document"
+                >
+                  <Download size={16} /> Download
+                </button>
+                <button
+                  className={classNames(styles.actionButton, styles.danger)}
+                  onClick={(e) => handleDelete(doc.metadata.document_id, e)}
+                  title="Delete document"
+                >
+                  <Trash2 size={16} /> Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };

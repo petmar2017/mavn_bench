@@ -375,7 +375,7 @@ async def list_documents(
         )
 
 
-@router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
     name: Optional[str] = None,
@@ -383,7 +383,7 @@ async def upload_document(
     service: DocumentService = Depends(get_document_service),
     pdf_service: PDFService = Depends(get_pdf_service),
     trace_context: Dict = Depends(verify_trace_context)
-) -> DocumentResponse:
+) -> Dict[str, Any]:
     """Upload a document file
 
     Args:
@@ -431,8 +431,11 @@ async def upload_document(
             import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
                 content = await file.read()
-                await aiofiles.open(tmp_file.name, 'wb').write(content)
                 tmp_path = tmp_file.name
+
+            # Write content to temp file using aiofiles correctly
+            async with aiofiles.open(tmp_path, 'wb') as f:
+                await f.write(content)
 
             try:
                 # Process based on file type
@@ -474,17 +477,27 @@ async def upload_document(
 
                 logger.info(f"Document uploaded: {created.metadata.document_id}")
 
-                return DocumentResponse(
-                    document_id=created.metadata.document_id,
-                    name=created.metadata.name,
-                    document_type=created.metadata.document_type,
-                    summary=created.metadata.summary,
-                    version=created.metadata.version,
-                    created_at=created.metadata.created_at,
-                    updated_at=created.metadata.updated_at,
-                    created_user=created.metadata.created_user,
-                    updated_user=created.metadata.updated_user
-                )
+                # Return format that frontend expects
+                return {
+                    "id": created.metadata.document_id,  # Frontend expects 'id' field
+                    "metadata": {
+                        "document_id": created.metadata.document_id,
+                        "name": created.metadata.name,
+                        "document_type": created.metadata.document_type.value,
+                        "version": created.metadata.version,
+                        "size": len(content),  # File size in bytes
+                        "created_at": created.metadata.created_at.isoformat(),
+                        "updated_at": created.metadata.updated_at.isoformat(),
+                        "user_id": user["user_id"],
+                        "tags": [],
+                        "processing_status": "completed"
+                    },
+                    "content": {
+                        "raw_content": raw_text[:1000] if raw_text else None,  # Truncate for response
+                        "formatted_content": formatted_content[:1000] if formatted_content else None,
+                        "summary": created.metadata.summary
+                    }
+                }
 
             finally:
                 # Clean up temp file

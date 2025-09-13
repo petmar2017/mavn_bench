@@ -5,6 +5,13 @@ import { TextEncoder, TextDecoder } from 'util';
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder as any;
 
+// Polyfill for structuredClone (needed for Chakra UI v3)
+if (typeof global.structuredClone === 'undefined') {
+  global.structuredClone = (obj: any) => {
+    return JSON.parse(JSON.stringify(obj));
+  };
+}
+
 // Mock import.meta.env for Vite
 (global as any).import = {
   meta: {

@@ -1,4 +1,4 @@
-import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '../test/utils';
 import userEvent from '@testing-library/user-event';
 import { DocumentList } from './DocumentList';
@@ -7,31 +7,28 @@ import { wsService } from '../services/websocket';
 import { mockDocuments, mockDocument } from '../test/mocks';
 
 // Mock the API and WebSocket service
-jest.mock('../services/api', () => ({
+vi.mock('../services/api', () => ({
   documentApi: {
-    listDocuments: jest.fn(),
-    deleteDocument: jest.fn(),
+    listDocuments: vi.fn(),
+    deleteDocument: vi.fn(),
   },
 }));
 
-jest.mock('../services/websocket', () => ({
+vi.mock('../services/websocket', () => ({
   wsService: {
-    onSystemNotification: jest.fn(() => jest.fn()),
+    onSystemNotification: vi.fn(() => vi.fn()),
   },
 }));
-
-const mockedDocumentApi = documentApi as jest.Mocked<typeof documentApi>;
-const mockedWsService = wsService as jest.Mocked<typeof wsService>;
 
 describe('DocumentList', () => {
-  const mockOnDocumentSelect = jest.fn();
+  const mockOnDocumentSelect = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render loading state initially', () => {
-    mockedDocumentApi.listDocuments.mockImplementation(
+    vi.mocked(documentApi.listDocuments).mockImplementation(
       () => new Promise(() => {}) // Never resolves to keep loading state
     );
 
@@ -42,7 +39,7 @@ describe('DocumentList', () => {
   });
 
   it('should render documents in a table', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
@@ -61,7 +58,7 @@ describe('DocumentList', () => {
   });
 
   it('should show empty state when no documents', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce([]);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce([]);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
@@ -72,7 +69,7 @@ describe('DocumentList', () => {
   });
 
   it('should handle document selection on row click', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
@@ -87,7 +84,7 @@ describe('DocumentList', () => {
   });
 
   it('should show document status badges', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
@@ -98,7 +95,7 @@ describe('DocumentList', () => {
   });
 
   it('should format file sizes correctly', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce([
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce([
       {
         ...mockDocument,
         metadata: {
@@ -134,8 +131,8 @@ describe('DocumentList', () => {
   });
 
   it('should handle document deletion', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
-    mockedDocumentApi.deleteDocument.mockResolvedValueOnce(undefined);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.deleteDocument).mockResolvedValueOnce(undefined);
 
     const user = userEvent.setup();
 
@@ -156,13 +153,13 @@ describe('DocumentList', () => {
       const deleteOption = await screen.findByText('Delete');
       await user.click(deleteOption);
 
-      expect(mockedDocumentApi.deleteDocument).toHaveBeenCalledWith('doc-123');
+      expect(documentApi.deleteDocument).toHaveBeenCalledWith('doc-123');
     }
   });
 
   it('should handle delete errors gracefully', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
-    mockedDocumentApi.deleteDocument.mockRejectedValueOnce(
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.deleteDocument).mockRejectedValueOnce(
       { response: { data: { detail: 'Delete failed' } } }
     );
 
@@ -184,12 +181,12 @@ describe('DocumentList', () => {
       await user.click(deleteOption);
 
       // Should still have called the API
-      expect(mockedDocumentApi.deleteDocument).toHaveBeenCalled();
+      expect(documentApi.deleteDocument).toHaveBeenCalled();
     }
   });
 
   it('should refresh when refresh prop changes', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     const { rerender } = render(
       <DocumentList onDocumentSelect={mockOnDocumentSelect} refresh={0} />
@@ -199,32 +196,32 @@ describe('DocumentList', () => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    expect(mockedDocumentApi.listDocuments).toHaveBeenCalledTimes(1);
+    expect(documentApi.listDocuments).toHaveBeenCalledTimes(1);
 
     // Trigger refresh by changing the refresh prop
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
     rerender(<DocumentList onDocumentSelect={mockOnDocumentSelect} refresh={1} />);
 
     await waitFor(() => {
-      expect(mockedDocumentApi.listDocuments).toHaveBeenCalledTimes(2);
+      expect(documentApi.listDocuments).toHaveBeenCalledTimes(2);
     });
   });
 
   it('should subscribe to WebSocket events', () => {
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
-    expect(mockedWsService.onSystemNotification).toHaveBeenCalled();
+    expect(wsService.onSystemNotification).toHaveBeenCalled();
   });
 
   it('should refresh on document created WebSocket event', async () => {
     let notificationCallback: ((notification: any) => void) | null = null;
 
-    mockedWsService.onSystemNotification.mockImplementation((callback) => {
+    vi.mocked(wsService.onSystemNotification).mockImplementation((callback) => {
       notificationCallback = callback;
-      return jest.fn(); // Return unsubscribe function
+      return vi.fn(); // Return unsubscribe function
     });
 
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
@@ -232,10 +229,10 @@ describe('DocumentList', () => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    expect(mockedDocumentApi.listDocuments).toHaveBeenCalledTimes(1);
+    expect(documentApi.listDocuments).toHaveBeenCalledTimes(1);
 
     // Simulate WebSocket event
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce([...mockDocuments, {
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce([...mockDocuments, {
       ...mockDocument,
       metadata: {
         ...mockDocument.metadata,
@@ -249,13 +246,13 @@ describe('DocumentList', () => {
     }
 
     await waitFor(() => {
-      expect(mockedDocumentApi.listDocuments).toHaveBeenCalledTimes(2);
+      expect(documentApi.listDocuments).toHaveBeenCalledTimes(2);
     });
   });
 
   it('should handle API errors', async () => {
     const errorMessage = 'Failed to fetch documents';
-    mockedDocumentApi.listDocuments.mockRejectedValueOnce(
+    vi.mocked(documentApi.listDocuments).mockRejectedValueOnce(
       { response: { data: { detail: errorMessage } } }
     );
 
@@ -267,7 +264,7 @@ describe('DocumentList', () => {
   });
 
   it('should show document type badges', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
@@ -280,7 +277,7 @@ describe('DocumentList', () => {
 
   it('should format dates correctly', async () => {
     const testDate = '2024-01-15T10:30:00Z';
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce([
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce([
       {
         ...mockDocument,
         metadata: {
@@ -300,7 +297,7 @@ describe('DocumentList', () => {
   });
 
   it('should handle view action from menu', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     const user = userEvent.setup();
 
@@ -326,7 +323,7 @@ describe('DocumentList', () => {
   });
 
   it('should stop event propagation on menu button click', async () => {
-    mockedDocumentApi.listDocuments.mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     const user = userEvent.setup();
 

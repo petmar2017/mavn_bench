@@ -1,41 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import {
-  ChakraProvider,
-  Box,
-  Container,
-  VStack,
-  Heading,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  useToast,
-  IconButton,
-  HStack,
-  Text,
-  useColorMode,
-  useColorModeValue,
-  Divider,
-} from '@chakra-ui/react';
+import { useState, useEffect } from 'react';
 import { Moon, Sun, FileText } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import classNames from 'classnames';
+import styles from './App.module.css';
 import { DocumentUpload } from './components/DocumentUpload';
 import { DocumentList } from './components/DocumentList';
 import { SearchInterface } from './components/SearchInterface';
 import { wsService } from './services/websocket';
-import { DocumentMessage } from './services/api';
+import { logger } from './services/logging';
+import type { DocumentMessage } from './services/api';
+
+// Initialize logger
+logger.info('Application starting', {
+  environment: process.env.NODE_ENV,
+  timestamp: new Date().toISOString()
+});
 
 const queryClient = new QueryClient();
+logger.debug('QueryClient created');
 
 function AppContent() {
   const [refreshDocuments, setRefreshDocuments] = useState(0);
   const [selectedDocument, setSelectedDocument] = useState<DocumentMessage | null>(null);
-  const { colorMode, toggleColorMode } = useColorMode();
-  const toast = useToast();
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
+  const [activeTab, setActiveTab] = useState('upload');
+  const [toasts, setToasts] = useState<Array<{ id: string; title: string; description: string; type: string }>>([]);
 
-  const bgColor = useColorModeValue('gray.50', 'gray.900');
-  const cardBg = useColorModeValue('white', 'gray.800');
+  const toggleColorMode = () => {
+    setColorMode(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const showToast = (notification: { title?: string; message: string; type?: string }) => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, {
+      id,
+      title: notification.title || 'System Notification',
+      description: notification.message,
+      type: notification.type || 'info'
+    }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
 
   useEffect(() => {
     // Connect to WebSocket
@@ -43,139 +49,167 @@ function AppContent() {
 
     // Subscribe to system notifications
     const unsubscribe = wsService.onSystemNotification((notification) => {
-      toast({
-        title: notification.title || 'System Notification',
-        description: notification.message,
-        status: notification.type || 'info',
-        duration: 5000,
-        isClosable: true,
-      });
+      showToast(notification);
     });
 
     return () => {
       unsubscribe();
       wsService.disconnect();
     };
-  }, [toast]);
+  }, []);
 
   const handleUploadSuccess = (document: DocumentMessage) => {
-    toast({
-      title: 'Upload successful',
-      description: `${document.metadata.name} has been uploaded`,
-      status: 'success',
-      duration: 5000,
-      isClosable: true,
-    });
-    setRefreshDocuments(prev => prev + 1);
+    if (document && document.metadata && document.metadata.name) {
+      showToast({
+        title: 'Upload successful',
+        message: `${document.metadata.name} has been uploaded`,
+        type: 'success'
+      });
+      setRefreshDocuments(prev => prev + 1);
+    } else {
+      logger.error('Invalid document received on upload success', { document });
+      showToast({
+        title: 'Upload completed',
+        message: 'Document uploaded but response was invalid',
+        type: 'warning'
+      });
+    }
   };
 
   const handleDocumentSelect = (document: DocumentMessage) => {
     setSelectedDocument(document);
-    // You can add logic here to show document details in a modal or side panel
+    logger.debug('Document selected', { documentId: document.id, documentName: document.metadata.name });
   };
 
   const handleSearchResultSelect = (result: any) => {
     // Handle search result selection
-    console.log('Selected search result:', result);
+    logger.debug('Search result selected', { result });
   };
 
   return (
-    <Box minH="100vh" bg={bgColor}>
-      <Container maxW="container.xl" py={8}>
-        <VStack spacing={8} align="stretch">
+    <div className={classNames(styles.app, { [styles.dark]: colorMode === 'dark' })}>
+      <div className="container" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
+        <div className="flex flex-col gap-8">
           {/* Header */}
-          <HStack justify="space-between" align="center">
-            <HStack spacing={3}>
+          <div className={styles.header}>
+            <div className={styles.headerLeft}>
               <FileText size={32} />
-              <Heading size="lg">Mavn Bench</Heading>
-            </HStack>
-            <HStack spacing={4}>
-              <Text fontSize="sm" color="gray.500">
+              <h1>Mavn Bench</h1>
+            </div>
+            <div className={styles.headerRight}>
+              <span className="text-sm text-gray-500">
                 Document Processing Platform
-              </Text>
-              <IconButton
+              </span>
+              <button
+                className={styles.colorModeButton}
                 aria-label="Toggle color mode"
-                icon={colorMode === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                 onClick={toggleColorMode}
-                variant="ghost"
-              />
-            </HStack>
-          </HStack>
+              >
+                {colorMode === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+              </button>
+            </div>
+          </div>
 
-          <Divider />
+          <div className={styles.separator} />
 
           {/* Main Content */}
-          <Tabs variant="enclosed" colorScheme="blue">
-            <TabList>
-              <Tab>Upload</Tab>
-              <Tab>Documents</Tab>
-              <Tab>Search</Tab>
-            </TabList>
+          <div className={styles.tabs}>
+            <div className={styles.tabList}>
+              <button
+                className={classNames(styles.tabButton, { [styles.active]: activeTab === 'upload' })}
+                onClick={() => setActiveTab('upload')}
+              >
+                Upload
+              </button>
+              <button
+                className={classNames(styles.tabButton, { [styles.active]: activeTab === 'documents' })}
+                onClick={() => setActiveTab('documents')}
+              >
+                Documents
+              </button>
+              <button
+                className={classNames(styles.tabButton, { [styles.active]: activeTab === 'search' })}
+                onClick={() => setActiveTab('search')}
+              >
+                Search
+              </button>
+            </div>
 
-            <TabPanels>
-              {/* Upload Tab */}
-              <TabPanel>
-                <VStack spacing={6} align="stretch">
-                  <Box>
-                    <Heading size="md" mb={2}>Upload Document</Heading>
-                    <Text color="gray.500" fontSize="sm">
+            <div className={styles.tabContent}>
+              {activeTab === 'upload' && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>Upload Document</h2>
+                    <p className={styles.sectionDescription}>
                       Drag and drop or click to upload PDF, Word, Text, Markdown, CSV, or JSON files
-                    </Text>
-                  </Box>
-                  <Box bg={cardBg} p={6} borderRadius="lg" shadow="sm">
+                    </p>
+                  </div>
+                  <div className={styles.card}>
                     <DocumentUpload onUploadSuccess={handleUploadSuccess} />
-                  </Box>
-                </VStack>
-              </TabPanel>
+                  </div>
+                </div>
+              )}
 
-              {/* Documents Tab */}
-              <TabPanel>
-                <VStack spacing={6} align="stretch">
-                  <Box>
-                    <Heading size="md" mb={2}>Document Library</Heading>
-                    <Text color="gray.500" fontSize="sm">
+              {activeTab === 'documents' && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>Document Library</h2>
+                    <p className={styles.sectionDescription}>
                       View and manage your uploaded documents
-                    </Text>
-                  </Box>
-                  <Box bg={cardBg} p={6} borderRadius="lg" shadow="sm">
+                    </p>
+                  </div>
+                  <div className={styles.card}>
                     <DocumentList
                       refresh={refreshDocuments}
                       onDocumentSelect={handleDocumentSelect}
                     />
-                  </Box>
-                </VStack>
-              </TabPanel>
+                  </div>
+                </div>
+              )}
 
-              {/* Search Tab */}
-              <TabPanel>
-                <VStack spacing={6} align="stretch">
-                  <Box>
-                    <Heading size="md" mb={2}>Search Documents</Heading>
-                    <Text color="gray.500" fontSize="sm">
+              {activeTab === 'search' && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle}>Search Documents</h2>
+                    <p className={styles.sectionDescription}>
                       Search across your documents using vector, full-text, graph, or hybrid search
-                    </Text>
-                  </Box>
-                  <Box bg={cardBg} p={6} borderRadius="lg" shadow="sm">
+                    </p>
+                  </div>
+                  <div className={styles.card}>
                     <SearchInterface onResultSelect={handleSearchResultSelect} />
-                  </Box>
-                </VStack>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
-        </VStack>
-      </Container>
-    </Box>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Toast Notifications */}
+          {toasts.map(toast => (
+            <div
+              key={toast.id}
+              className={classNames(styles.toast, styles[toast.type] || styles.info)}
+            >
+              <div className={styles.toastTitle}>{toast.title}</div>
+              <div className={styles.toastDescription}>{toast.description}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
 function App() {
-  return (
-    <ChakraProvider>
+  try {
+    return (
       <QueryClientProvider client={queryClient}>
         <AppContent />
       </QueryClientProvider>
-    </ChakraProvider>
-  );
+    );
+  } catch (error) {
+    logger.error('Error rendering App', { error: String(error) });
+    return <div>Error loading app: {String(error)}</div>;
+  }
 }
 
 export default App;

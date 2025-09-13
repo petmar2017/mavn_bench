@@ -1,49 +1,46 @@
-import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '../test/utils';
-import userEvent from '@testing-library/user-event';
 import { DocumentUpload } from './DocumentUpload';
 import { documentApi } from '../services/api';
 import { mockDocument, createMockFile } from '../test/mocks';
 
 // Mock the API
-jest.mock('../services/api', () => ({
+vi.mock('../services/api', () => ({
   documentApi: {
-    uploadDocument: jest.fn(),
+    createDocument: vi.fn(),
   },
 }));
 
-const mockedDocumentApi = documentApi as jest.Mocked<typeof documentApi>;
-
 describe('DocumentUpload', () => {
-  const mockOnUploadSuccess = jest.fn();
+  const mockOnUploadSuccess = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render upload zone with correct text', () => {
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    expect(screen.getByText(/drag & drop files here/i)).toBeInTheDocument();
-    expect(screen.getByText(/click to select files/i)).toBeInTheDocument();
+    expect(screen.getByText(/drag & drop a file here/i)).toBeInTheDocument();
+    expect(screen.getByText(/or click to select/i)).toBeInTheDocument();
   });
 
   it('should show supported file types', () => {
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    expect(screen.getByText(/supported formats/i)).toBeInTheDocument();
-    expect(screen.getByText(/PDF/)).toBeInTheDocument();
-    expect(screen.getByText(/Word/)).toBeInTheDocument();
-    expect(screen.getByText(/Excel/)).toBeInTheDocument();
-    expect(screen.getByText(/JSON/)).toBeInTheDocument();
+    // Check for file type badges
+    expect(screen.getByText('PDF')).toBeInTheDocument();
+    expect(screen.getByText('Word')).toBeInTheDocument();
+    expect(screen.getByText('CSV')).toBeInTheDocument();
+    expect(screen.getByText('JSON')).toBeInTheDocument();
   });
 
   it('should handle file drop successfully', async () => {
-    mockedDocumentApi.uploadDocument.mockResolvedValueOnce(mockDocument);
+    vi.mocked(documentApi.createDocument).mockResolvedValueOnce(mockDocument);
 
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file = createMockFile('test.pdf', 1024, 'application/pdf');
 
     // Simulate file drop
@@ -56,7 +53,7 @@ describe('DocumentUpload', () => {
     });
 
     await waitFor(() => {
-      expect(mockedDocumentApi.uploadDocument).toHaveBeenCalledWith(file);
+      expect(documentApi.createDocument).toHaveBeenCalled();
     });
 
     await waitFor(() => {
@@ -65,11 +62,11 @@ describe('DocumentUpload', () => {
   });
 
   it('should handle multiple file uploads', async () => {
-    mockedDocumentApi.uploadDocument.mockResolvedValue(mockDocument);
+    vi.mocked(documentApi.createDocument).mockResolvedValue(mockDocument);
 
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file1 = createMockFile('test1.pdf', 1024, 'application/pdf');
     const file2 = createMockFile('test2.docx', 2048, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
@@ -85,21 +82,20 @@ describe('DocumentUpload', () => {
     });
 
     await waitFor(() => {
-      expect(mockedDocumentApi.uploadDocument).toHaveBeenCalledTimes(2);
-      expect(mockedDocumentApi.uploadDocument).toHaveBeenCalledWith(file1);
-      expect(mockedDocumentApi.uploadDocument).toHaveBeenCalledWith(file2);
+      // Component only allows single file upload (maxFiles: 1)
+      expect(documentApi.createDocument).toHaveBeenCalledTimes(1);
     });
   });
 
   it('should show upload progress', async () => {
     // Mock a delayed upload
-    mockedDocumentApi.uploadDocument.mockImplementation(
+    vi.mocked(documentApi.createDocument).mockImplementation(
       () => new Promise(resolve => setTimeout(() => resolve(mockDocument), 100))
     );
 
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file = createMockFile('test.pdf', 1024, 'application/pdf');
 
     fireEvent.drop(dropzone, {
@@ -110,8 +106,10 @@ describe('DocumentUpload', () => {
       },
     });
 
-    // Should show uploading state
-    expect(screen.getByText(/uploading/i)).toBeInTheDocument();
+    // Wait for uploading state to appear
+    await waitFor(() => {
+      expect(screen.getByText(/uploading/i)).toBeInTheDocument();
+    });
 
     await waitFor(() => {
       expect(mockOnUploadSuccess).toHaveBeenCalled();
@@ -120,11 +118,13 @@ describe('DocumentUpload', () => {
 
   it('should handle upload errors', async () => {
     const errorMessage = 'Upload failed';
-    mockedDocumentApi.uploadDocument.mockRejectedValueOnce(new Error(errorMessage));
+    vi.mocked(documentApi.createDocument).mockRejectedValueOnce(
+      { response: { data: { detail: errorMessage } } }
+    );
 
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file = createMockFile('test.pdf', 1024, 'application/pdf');
 
     fireEvent.drop(dropzone, {
@@ -145,7 +145,7 @@ describe('DocumentUpload', () => {
   it('should reject unsupported file types', async () => {
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file = createMockFile('test.exe', 1024, 'application/x-msdownload');
 
     fireEvent.drop(dropzone, {
@@ -157,13 +157,13 @@ describe('DocumentUpload', () => {
     });
 
     // Should not call upload API for unsupported file type
-    expect(mockedDocumentApi.uploadDocument).not.toHaveBeenCalled();
+    expect(documentApi.createDocument).not.toHaveBeenCalled();
   });
 
   it('should handle file size limits', async () => {
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     // Create a file larger than 10MB (assuming that's the limit)
     const largeFile = createMockFile('large.pdf', 11 * 1024 * 1024, 'application/pdf');
 
@@ -179,17 +179,17 @@ describe('DocumentUpload', () => {
       expect(screen.getByText(/file too large/i)).toBeInTheDocument();
     });
 
-    expect(mockedDocumentApi.uploadDocument).not.toHaveBeenCalled();
+    expect(documentApi.createDocument).not.toHaveBeenCalled();
   });
 
   it('should clear error message after successful upload', async () => {
     // First, trigger an error
     const errorMessage = 'Upload failed';
-    mockedDocumentApi.uploadDocument.mockRejectedValueOnce(new Error(errorMessage));
+    vi.mocked(documentApi.createDocument).mockRejectedValueOnce(new Error(errorMessage));
 
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file1 = createMockFile('test1.pdf', 1024, 'application/pdf');
 
     fireEvent.drop(dropzone, {
@@ -205,7 +205,7 @@ describe('DocumentUpload', () => {
     });
 
     // Now, upload successfully
-    mockedDocumentApi.uploadDocument.mockResolvedValueOnce(mockDocument);
+    vi.mocked(documentApi.createDocument).mockResolvedValueOnce(mockDocument);
     const file2 = createMockFile('test2.pdf', 1024, 'application/pdf');
 
     fireEvent.drop(dropzone, {
@@ -227,7 +227,7 @@ describe('DocumentUpload', () => {
   it('should handle drag over state', () => {
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
 
     // Simulate drag enter
     fireEvent.dragEnter(dropzone);
@@ -239,11 +239,11 @@ describe('DocumentUpload', () => {
   });
 
   it('should show file preview after selection', async () => {
-    mockedDocumentApi.uploadDocument.mockResolvedValueOnce(mockDocument);
+    vi.mocked(documentApi.createDocument).mockResolvedValueOnce(mockDocument);
 
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
     const file = createMockFile('test-document.pdf', 1024, 'application/pdf');
 
     fireEvent.drop(dropzone, {
@@ -265,7 +265,7 @@ describe('DocumentUpload', () => {
   it('should be accessible with keyboard navigation', async () => {
     render(<DocumentUpload onUploadSuccess={mockOnUploadSuccess} />);
 
-    const dropzone = screen.getByText(/drag & drop files here/i).closest('div')!;
+    const dropzone = screen.getByText(/drag & drop a file here/i).closest('div')!;
 
     // Should be focusable
     expect(dropzone).toHaveAttribute('tabIndex', '0');

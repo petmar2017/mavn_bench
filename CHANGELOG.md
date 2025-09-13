@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Critical Fixes and Improvements (2025-09-14)
+- **Removed Chakra UI Completely**:
+  - Migrated all components from Chakra UI to plain React with CSS Modules
+  - Fixed numerous compatibility issues with Chakra UI v3
+  - Removed 126 Chakra-related packages
+  - Updated all components to use native React patterns
+  - Improved build size and performance
+- **Centralized Client-Side Logging**:
+  - Implemented comprehensive client-side logging service
+  - All browser logs automatically sent to backend server
+  - Buffered logging with batch sending every 5 seconds
+  - Captures window errors and unhandled promise rejections
+  - Session tracking and detailed error context
+  - Backend endpoint for receiving and processing client logs
+- **Fixed Critical API Routing Issue**:
+  - Socket.IO was blocking all API routes by being mounted at root path
+  - Moved Socket.IO mount point from "/" to "/socket.io"
+  - All API endpoints now accessible again
+- **Fixed Document Upload**:
+  - Backend now returns correct response format with "id" field
+  - Frontend properly handles upload responses
+  - Added comprehensive error logging for upload failures
+  - File metadata properly extracted and stored
+- **Developer Experience Improvements**:
+  - Added `make dev-all-logs` command to see all logs in one terminal
+  - Added `make restart` command to handle port conflicts
+  - Added comprehensive stop commands for all services
+  - Color-coded log output for frontend and backend
+- **Documentation Updates**:
+  - Updated CLAUDE.md to specify only native React and Vitest
+  - Removed all references to Chakra UI
+  - Added guidelines for plain React development
+
 ### Frontend Implementation Complete (2025-09-13)
 - **React Frontend with Chakra UI**:
   - Built complete React 19 + TypeScript frontend with Vite

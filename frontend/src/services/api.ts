@@ -83,8 +83,8 @@ export const documentApi = {
   },
 
   async listDocuments(params?: { limit?: number; offset?: number; user_id?: string }) {
-    const response = await api.get<DocumentMessage[]>('/api/documents', { params });
-    return response.data;
+    const response = await api.get<{ documents: DocumentMessage[]; total: number; limit: number; offset: number }>('/api/documents/', { params });
+    return response.data.documents || [];
   },
 
   async updateDocument(documentId: string, data: Partial<DocumentMessage>) {

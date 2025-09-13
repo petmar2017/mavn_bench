@@ -1,20 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import {
-  Box,
-  VStack,
-  Text,
-  Icon,
-  Alert,
-  AlertIcon,
-  AlertDescription,
-  Spinner,
-  HStack,
-  Tag,
-  useColorModeValue,
-} from '@chakra-ui/react';
-import { Upload, CheckCircle } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import classNames from 'classnames';
 import { documentApi } from '../services/api';
+import { logger, logApiError } from '../services/logging';
+import styles from './DocumentUpload.module.css';
 
 interface UploadState {
   isUploading: boolean;
@@ -33,38 +23,63 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onUploadSuccess 
     success: false,
   });
 
-  const borderColor = useColorModeValue('gray.300', 'gray.600');
-  const hoverBorderColor = useColorModeValue('gray.400', 'gray.500');
-  const activeBgColor = useColorModeValue('blue.50', 'blue.900');
-
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
     const file = acceptedFiles[0];
+    logger.info('Starting file upload', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || 'unknown'
+    });
+
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('name', file.name);
+    formData.append('type', file.type || 'application/octet-stream');
 
     setUploadState({ isUploading: true, error: null, success: false });
 
     try {
-      const document = await documentApi.createDocument(formData);
+      const response = await documentApi.createDocument(formData);
+
+      // Check if response is valid
+      if (!response || !response.id) {
+        throw new Error('Invalid response from server');
+      }
+
+      logger.info('File uploaded successfully', {
+        fileName: file.name,
+        documentId: response.id
+      });
+
       setUploadState({ isUploading: false, error: null, success: true });
-      onUploadSuccess?.(document);
+      onUploadSuccess?.(response);
 
       // Reset success state after 3 seconds
       setTimeout(() => {
         setUploadState(prev => ({ ...prev, success: false }));
       }, 3000);
     } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || 'Upload failed. Please try again.';
+
+      // Log the error with full context
+      logApiError('/api/documents', error);
+      logger.error('File upload failed', {
+        fileName: file.name,
+        errorMessage,
+        statusCode: error.response?.status
+      });
+
       setUploadState({
         isUploading: false,
-        error: error.response?.data?.detail || 'Upload failed',
+        error: errorMessage,
         success: false,
       });
     }
   }, [onUploadSuccess]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
@@ -74,73 +89,70 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onUploadSuccess 
       'text/markdown': ['.md'],
       'text/csv': ['.csv'],
       'application/json': ['.json'],
-      'application/xml': ['.xml'],
     },
     maxFiles: 1,
     disabled: uploadState.isUploading,
   });
 
   return (
-    <Box w="full">
-      <Box
+    <div className={styles.container}>
+      <div
         {...getRootProps()}
-        border="2px"
-        borderStyle="dashed"
-        borderColor={isDragActive ? 'blue.500' : borderColor}
-        borderRadius="lg"
-        p={8}
-        textAlign="center"
-        cursor={uploadState.isUploading ? 'not-allowed' : 'pointer'}
-        transition="all 0.2s"
-        bg={isDragActive ? activeBgColor : 'transparent'}
-        _hover={{
-          borderColor: uploadState.isUploading ? borderColor : hoverBorderColor,
-        }}
-        opacity={uploadState.isUploading ? 0.5 : 1}
+        className={classNames(styles.dropzone, {
+          [styles.uploading]: uploadState.isUploading,
+          [styles.success]: uploadState.success,
+          [styles.error]: uploadState.error,
+        })}
       >
         <input {...getInputProps()} />
 
-        <VStack spacing={4}>
-          {uploadState.isUploading ? (
-            <>
-              <Spinner size="xl" color="blue.500" thickness="3px" />
-              <Text color="gray.600">Uploading...</Text>
-            </>
-          ) : uploadState.success ? (
-            <>
-              <Icon as={CheckCircle} boxSize={12} color="green.500" />
-              <Text color="green.600" fontWeight="medium">Upload successful!</Text>
-            </>
-          ) : (
-            <>
-              <Icon as={Upload} boxSize={12} color="gray.400" />
-              <VStack spacing={1}>
-                <Text fontSize="lg" fontWeight="medium">
-                  {isDragActive ? 'Drop the file here' : 'Drag & drop a file here'}
-                </Text>
-                <Text fontSize="sm" color="gray.500">
-                  or click to select
-                </Text>
-              </VStack>
-              <HStack spacing={2} flexWrap="wrap" justify="center">
-                <Tag size="sm" variant="subtle">PDF</Tag>
-                <Tag size="sm" variant="subtle">Word</Tag>
-                <Tag size="sm" variant="subtle">Text</Tag>
-                <Tag size="sm" variant="subtle">Markdown</Tag>
-                <Tag size="sm" variant="subtle">CSV</Tag>
-                <Tag size="sm" variant="subtle">JSON</Tag>
-              </HStack>
-            </>
-          )}
-        </VStack>
-      </Box>
+        {uploadState.isUploading ? (
+          <div className={styles.dropzoneContent}>
+            <div className={styles.spinner} />
+            <div className={styles.uploadingText}>Uploading...</div>
+          </div>
+        ) : uploadState.success ? (
+          <div className={styles.dropzoneContent}>
+            <CheckCircle size={48} className={styles.successIcon} />
+            <div className={styles.successText}>
+              Upload successful!
+            </div>
+          </div>
+        ) : (
+          <div className={styles.dropzoneContent}>
+            <Upload size={48} className={styles.icon} />
+            <div className={styles.title}>
+              {isDragActive ? 'Drop the file here' : 'Drag & drop a file here'}
+            </div>
+            <div className={styles.subtitle}>
+              or click to select
+            </div>
+            <div className={styles.badges}>
+              <span className={styles.badge}>PDF</span>
+              <span className={styles.badge}>Word</span>
+              <span className={styles.badge}>Text</span>
+              <span className={styles.badge}>Markdown</span>
+              <span className={styles.badge}>CSV</span>
+              <span className={styles.badge}>JSON</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {uploadState.error && (
-        <Alert status="error" mt={4} borderRadius="lg">
-          <AlertIcon />
-          <AlertDescription>{uploadState.error}</AlertDescription>
-        </Alert>
+        <div className={styles.alert}>
+          <AlertCircle size={20} className={styles.alertIcon} />
+          <span className={styles.alertText}>{uploadState.error}</span>
+        </div>
       )}
-    </Box>
+
+      {acceptedFiles.length > 0 && !uploadState.isUploading && !uploadState.error && (
+        <div className={styles.fileInfo}>
+          <div className={styles.fileInfoText}>
+            Selected: {acceptedFiles[0].name} ({(acceptedFiles[0].size / 1024).toFixed(2)} KB)
+          </div>
+        </div>
+      )}
+    </div>
   );
 };

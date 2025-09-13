@@ -1,0 +1,175 @@
+/* App-specific styles */
+
+.app {
+  min-height: 100vh;
+  background-color: #f7fafc;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.colorModeButton {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  transition: background-color 0.2s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.colorModeButton:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.separator {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 2rem 0;
+}
+
+.tabs {
+  margin-top: 2rem;
+}
+
+.tabList {
+  display: flex;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 1rem;
+}
+
+.tabButton {
+  padding: 0.75rem 1.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+  color: #718096;
+  transition: all 0.2s;
+}
+
+.tabButton:hover {
+  color: #2d3748;
+}
+
+.tabButton.active {
+  color: #3182ce;
+  border-bottom-color: #3182ce;
+}
+
+.tabContent {
+  padding-top: 1rem;
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.sectionHeader {
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.sectionDescription {
+  color: #718096;
+  font-size: 0.875rem;
+}
+
+.card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  color: white;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast.success {
+  background-color: #48bb78;
+}
+
+.toast.error {
+  background-color: #f56565;
+}
+
+.toast.info {
+  background-color: #4299e1;
+}
+
+.toastTitle {
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+}
+
+.toastDescription {
+  font-size: 0.875rem;
+}
+
+/* Dark mode support */
+.app.dark {
+  background-color: #1a202c;
+  color: #e2e8f0;
+}
+
+.app.dark .card {
+  background-color: #2d3748;
+  color: #e2e8f0;
+}
+
+.app.dark .tabButton {
+  color: #a0aec0;
+}
+
+.app.dark .tabButton:hover {
+  color: #e2e8f0;
+}
+
+.app.dark .separator {
+  background-color: #4a5568;
+}
+
+.app.dark .sectionDescription {
+  color: #a0aec0;
+}
