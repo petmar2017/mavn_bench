@@ -110,6 +110,7 @@ async def create_document(
                 document_type=request.document_type,
                 name=request.name,
                 summary=request.summary,
+                file_size=len(request.content.encode('utf-8')) if request.content else 0,  # Calculate file size from content
                 created_user=user["user_id"],
                 updated_user=user["user_id"]
             )
@@ -362,7 +363,7 @@ async def list_documents(
                     "name": doc.name,
                     "document_type": doc.document_type,
                     "version": doc.version,
-                    "size": 0,  # Size not stored in simplified response
+                    "size": doc.file_size if hasattr(doc, 'file_size') and doc.file_size else 0,  # Use actual file size from metadata
                     "created_at": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
                     "updated_at": doc.updated_at.isoformat() if hasattr(doc.updated_at, 'isoformat') else str(doc.updated_at),
                     "user_id": doc.created_user,
@@ -463,6 +464,7 @@ async def upload_document(
                     document_id=str(uuid.uuid4()),
                     document_type=doc_type,
                     name=name or file.filename,
+                    file_size=len(content),  # Set the actual file size
                     created_user=user["user_id"],
                     updated_user=user["user_id"]
                 )
