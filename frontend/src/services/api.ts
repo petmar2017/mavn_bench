@@ -108,13 +108,13 @@ export const searchApi = {
   },
 
   async fulltextSearch(query: SearchQuery) {
-    const response = await api.post<SearchResult[]>('/api/search/fulltext', query);
-    return response.data;
+    const response = await api.post<{ results: SearchResult[] }>('/api/search/fulltext', query);
+    return response.data.results || [];
   },
 
   async graphSearch(query: SearchQuery) {
-    const response = await api.post<SearchResult[]>('/api/search/graph', query);
-    return response.data;
+    const response = await api.post<{ results: SearchResult[] }>('/api/search/graph', query);
+    return response.data.results || [];
   },
 
   async hybridSearch(query: SearchQuery) {

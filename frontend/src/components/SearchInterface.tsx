@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Search, FileText } from 'lucide-react';
+import { Search, FileText, HardDrive } from 'lucide-react';
 import classNames from 'classnames';
 import { searchApi } from '../services/api';
 import type { SearchResult } from '../services/api';
+import { formatFileSize } from '../utils/format';
 import styles from './SearchInterface.module.css';
 
 type SearchType = 'vector' | 'fulltext' | 'graph' | 'hybrid';
@@ -196,6 +197,12 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
                 <div className={styles.resultMetadata}>
                   {result.metadata.document_type && (
                     <span>Type: {result.metadata.document_type}</span>
+                  )}
+                  {result.metadata.size !== undefined && (
+                    <span style={{ marginLeft: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <HardDrive size={14} />
+                      {formatFileSize(result.metadata.size)}
+                    </span>
                   )}
                   {result.metadata.created_at && (
                     <span>
