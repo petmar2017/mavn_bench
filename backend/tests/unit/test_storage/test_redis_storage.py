@@ -1,6 +1,7 @@
 """Tests for RedisStorage adapter"""
 
 import pytest
+import pytest_asyncio
 import json
 from datetime import datetime
 
@@ -17,15 +18,12 @@ from src.models.document import DocumentMessage, DocumentVersion
 class TestRedisStorage:
     """Test suite for RedisStorage"""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def storage(self, redis_test_client):
         """Create a RedisStorage instance for testing"""
         # This will skip if Redis is not available
         storage = RedisStorage(redis_url="redis://localhost:6379/1")
-        yield storage
-        # Cleanup
-        if storage.redis_client:
-            await storage.close()
+        return storage
 
     @pytest.mark.asyncio
     async def test_initialization(self):

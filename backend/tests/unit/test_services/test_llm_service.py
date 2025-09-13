@@ -271,8 +271,9 @@ class TestLLMService:
         assert "capabilities" in health
         assert "summarization" in health["capabilities"]
         assert "configuration" in health
-        assert health["configuration"]["max_tokens"] == 4096
-        assert health["configuration"]["temperature"] == 0.7
+        # OpenAI service should have OpenAI-specific settings
+        assert health["configuration"]["max_tokens"] == 2000  # OpenAI max_tokens
+        assert health["configuration"]["temperature"] == 0.3  # OpenAI temperature
 
     @pytest.mark.asyncio
     async def test_concurrent_operations(self, service, sample_text):

@@ -57,10 +57,10 @@ def setup_telemetry():
     metrics.set_meter_provider(meter_provider)
     
     # Auto-instrument libraries
-    FastAPIInstrumentor.instrument()
-    HTTPXClientInstrumentor.instrument()
-    SQLAlchemyInstrumentor.instrument()
-    RedisInstrumentor.instrument()
+    FastAPIInstrumentor().instrument()
+    HTTPXClientInstrumentor().instrument()
+    SQLAlchemyInstrumentor().instrument()
+    RedisInstrumentor().instrument()
 
 def get_tracer(name: str) -> trace.Tracer:
     """Get a tracer instance"""

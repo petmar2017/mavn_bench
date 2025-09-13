@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import base64
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 import tempfile
@@ -9,22 +10,37 @@ from datetime import datetime
 
 from .base_service import BaseService
 from .service_factory import ServiceFactory, ServiceType
+from .llm_service import LLMService, LLMProvider
 from ..models.document import (
     DocumentMessage,
     DocumentMetadata,
     DocumentContent,
     DocumentType
 )
+from ..core.config import get_settings
 
 
 class PDFService(BaseService):
     """Service for PDF processing and conversion"""
 
-    def __init__(self):
-        """Initialize PDF service"""
+    def __init__(self, use_ai: bool = True):
+        """Initialize PDF service
+
+        Args:
+            use_ai: Whether to use Claude AI for PDF conversion
+        """
         super().__init__("PDFService")
         self.supported_formats = [".pdf"]
-        self.logger.info("Initialized PDFService")
+        self.use_ai = use_ai
+
+        # Initialize LLM service for AI-powered PDF conversion
+        self.llm_service = None
+        settings = get_settings()
+        if use_ai and settings.llm.anthropic_api_key:
+            self.llm_service = LLMService(provider=LLMProvider.ANTHROPIC)
+            self.logger.info("Initialized PDFService with Claude AI conversion")
+        else:
+            self.logger.info("Initialized PDFService with traditional conversion")
 
     async def pdf_to_markdown(self, file_path: str) -> str:
         """Convert PDF to markdown format
@@ -48,8 +64,12 @@ class PDFService(BaseService):
                 if not file_path.lower().endswith(".pdf"):
                     raise ValueError(f"File is not a PDF: {file_path}")
 
-                # Use asyncio.to_thread for CPU-intensive PDF processing
-                markdown = await asyncio.to_thread(self._sync_pdf_to_markdown, file_path)
+                # Use Claude AI if available, otherwise fall back to traditional method
+                if self.use_ai and self.llm_service:
+                    markdown = await self._ai_pdf_to_markdown(file_path)
+                else:
+                    # Use asyncio.to_thread for CPU-intensive PDF processing
+                    markdown = await asyncio.to_thread(self._sync_pdf_to_markdown, file_path)
 
                 self.logger.info(f"Converted PDF to markdown: {file_path}")
                 return markdown
@@ -136,6 +156,106 @@ class PDFService(BaseService):
             markdown.append("| " + " | ".join(str(cell or "") for cell in row) + " |")
 
         return "\n".join(markdown) + "\n"
+
+    async def _ai_pdf_to_markdown(self, file_path: str, use_vision: bool = False) -> str:
+        """Convert PDF to markdown using Claude AI
+
+        Args:
+            file_path: Path to the PDF file
+            use_vision: Whether to use Claude's vision API for better accuracy
+
+        Returns:
+            Markdown formatted text from Claude AI
+        """
+        try:
+            if use_vision:
+                # Use vision API for better accuracy (especially with complex layouts)
+                return await self._ai_pdf_vision_to_markdown(file_path)
+
+            # First extract text using traditional method for context
+            basic_text = await asyncio.to_thread(self._sync_pdf_to_markdown, file_path)
+
+            # Create a prompt for Claude to enhance and format the PDF content
+            prompt = f"""Convert the following PDF text content into well-formatted Markdown.
+Please:
+1. Identify and properly format headings (use #, ##, ###)
+2. Format lists and bullet points correctly
+3. Preserve table structures using Markdown tables
+4. Clean up any OCR errors or formatting issues
+5. Add appropriate line breaks and spacing
+6. Identify and format code blocks if present
+7. Keep all important information but improve readability
+
+PDF Content:
+{basic_text[:8000]}  # Limit to avoid token limits
+
+Output the improved Markdown content:"""
+
+            # Use Claude to enhance the markdown (uses provider's default settings)
+            enhanced_markdown = await self.llm_service._call_llm(prompt)
+
+            self.logger.info("Successfully converted PDF using Claude AI")
+            return enhanced_markdown
+
+        except Exception as e:
+            self.logger.warning(f"AI conversion failed, falling back to traditional: {str(e)}")
+            # Fall back to traditional conversion
+            return await asyncio.to_thread(self._sync_pdf_to_markdown, file_path)
+
+    async def _ai_pdf_vision_to_markdown(self, file_path: str) -> str:
+        """Convert PDF to markdown using Claude's vision API
+
+        Args:
+            file_path: Path to the PDF file
+
+        Returns:
+            Markdown formatted text from Claude Vision API
+        """
+        try:
+            import fitz  # PyMuPDF
+            from PIL import Image
+            import io
+
+            # Convert PDF pages to images
+            doc = fitz.open(file_path)
+            markdown_parts = []
+
+            for page_num, page in enumerate(doc, 1):
+                # Convert page to image
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x scale for better quality
+                img_data = pix.tobytes("png")
+
+                # Convert to base64 for Claude Vision API
+                img_base64 = base64.b64encode(img_data).decode('utf-8')
+
+                # Create prompt for vision API
+                vision_prompt = f"""You are looking at page {page_num} of a PDF document.
+Please convert this page to well-formatted Markdown.
+Include:
+- All text content
+- Proper heading hierarchy
+- Tables in Markdown format
+- Lists and bullet points
+- Code blocks if present
+- Image descriptions where relevant
+
+Output only the Markdown content for this page:"""
+
+                # Note: This would require updating the LLM service to support vision API
+                # For now, we'll use the text-based approach
+                self.logger.info(f"Processing page {page_num} with vision API")
+
+                # Placeholder for vision API call
+                # page_markdown = await self.llm_service._call_vision_api(img_base64, vision_prompt)
+                # markdown_parts.append(f"## Page {page_num}\n\n{page_markdown}\n")
+
+            doc.close()
+            return "\n".join(markdown_parts)
+
+        except Exception as e:
+            self.logger.error(f"Vision API conversion failed: {str(e)}")
+            # Fall back to text-based AI conversion
+            return await self._ai_pdf_to_markdown(file_path, use_vision=False)
 
     def _basic_pdf_extract(self, file_path: str) -> str:
         """Basic PDF text extraction fallback

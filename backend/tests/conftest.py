@@ -2,6 +2,7 @@
 
 import asyncio
 import pytest
+import pytest_asyncio
 import tempfile
 import shutil
 from pathlib import Path
@@ -102,7 +103,7 @@ def another_document() -> DocumentMessage:
     )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def redis_test_client():
     """Create a Redis client for testing (if Redis is available)"""
     import redis.asyncio as redis

@@ -258,14 +258,14 @@ class TestStorageFactory:
             StorageFactory.create("failing")
 
     @pytest.mark.asyncio
-    async def test_config_defaults_applied(self, monkeypatch):
+    async def test_config_defaults_applied(self, monkeypatch, temp_dir):
         """Test that configuration defaults are properly applied"""
 
         def mock_get_settings():
             class MockSettings:
                 class StorageConfig:
                     type = "filesystem"
-                    filesystem_base_path = "/custom/path"
+                    filesystem_base_path = str(temp_dir)
                     redis_url = "redis://custom:6380"
                 storage = StorageConfig()
             return MockSettings()
@@ -277,7 +277,7 @@ class TestStorageFactory:
             StorageType.FILESYSTEM,
             singleton=False
         )
-        assert str(fs_storage.base_path) == "/custom/path"
+        assert str(fs_storage.base_path) == str(temp_dir)
 
         # Create Redis without specifying URL
         redis_storage = StorageFactory.create(

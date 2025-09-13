@@ -70,8 +70,9 @@ class ServiceFactory:
         if not service_class:
             raise ValueError(f"Unknown service type: {service_type}")
 
-        # Inject storage dependency if not provided
-        if "storage" not in kwargs:
+        # Inject storage dependency only for services that need it
+        # DocumentService needs storage, but PDFService and LLMService don't
+        if service_type == ServiceType.DOCUMENT and "storage" not in kwargs:
             kwargs["storage"] = StorageFactory.get_default()
             cls._logger.debug(f"Injected default storage for {service_type}")
 

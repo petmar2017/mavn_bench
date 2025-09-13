@@ -63,6 +63,15 @@ class FilesystemStorage(StorageAdapter):
         """Get the file path for versions index"""
         return self.versions_dir / document_id / "index.json"
 
+    async def store(self, document_id: str, document_data: Dict[str, Any]) -> bool:
+        """Store a document to filesystem (alias for compatibility)"""
+        # Convert dict to DocumentMessage if needed
+        if isinstance(document_data, dict):
+            document = DocumentMessage(**document_data)
+        else:
+            document = document_data
+        return await self.save(document)
+
     async def save(self, document: DocumentMessage) -> bool:
         """Save a document to filesystem"""
         with self.traced_operation("save", document_id=document.metadata.document_id):
@@ -211,7 +220,7 @@ class FilesystemStorage(StorageAdapter):
                     # Apply filters
                     if user_id and metadata.created_user != user_id:
                         continue
-                    if document_type and metadata.document_type != document_type:
+                    if document_type and str(metadata.document_type) != document_type:
                         continue
 
                     metadata_list.append(metadata)

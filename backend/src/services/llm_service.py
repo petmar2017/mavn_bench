@@ -6,9 +6,13 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from enum import Enum
 
+from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
+
 from .base_service import BaseService
 from .service_factory import ServiceFactory, ServiceType
 from ..models.document import DocumentMessage, DocumentType
+from ..core.config import get_settings
 
 
 class LLMProvider(str, Enum):
@@ -46,16 +50,46 @@ class Entity:
 class LLMService(BaseService):
     """Service for LLM operations including summarization, entity extraction, and Q&A"""
 
-    def __init__(self, provider: LLMProvider = LLMProvider.OPENAI):
+    def __init__(self, provider: Optional[LLMProvider] = None):
         """Initialize LLM service
 
         Args:
-            provider: LLM provider to use
+            provider: LLM provider to use (defaults to config)
         """
         super().__init__("LLMService")
+        settings = get_settings()
+
+        # Use provider from argument or default from config
+        if provider is None:
+            provider = LLMProvider.ANTHROPIC if settings.llm.default_provider == "anthropic" else LLMProvider.OPENAI
+
         self.provider = provider
-        self.max_tokens = 4096
-        self.temperature = 0.7
+
+        # Set provider-specific settings
+        if provider == LLMProvider.ANTHROPIC:
+            self.max_tokens = settings.llm.claude_max_tokens
+            self.temperature = settings.llm.claude_temperature
+            self.model = settings.llm.claude_model
+        elif provider == LLMProvider.OPENAI:
+            self.max_tokens = settings.llm.openai_max_tokens
+            self.temperature = settings.llm.openai_temperature
+            self.model = settings.llm.openai_model
+        else:
+            # Use default settings (Claude by default)
+            self.max_tokens = settings.llm.max_tokens
+            self.temperature = settings.llm.temperature
+            self.model = settings.llm.default_model
+
+        # Initialize API clients
+        self.openai_client = None
+        self.anthropic_client = None
+
+        if settings.llm.openai_api_key:
+            self.openai_client = AsyncOpenAI(api_key=settings.llm.openai_api_key)
+
+        if settings.llm.anthropic_api_key:
+            self.anthropic_client = AsyncAnthropic(api_key=settings.llm.anthropic_api_key)
+
         self.logger.info(f"Initialized LLMService with provider: {provider}")
 
     async def generate_summary(
@@ -210,9 +244,9 @@ Entities (JSON format):"""
         """
         entities = []
 
-        try:
-            # Try to parse as JSON
-            if response.strip().startswith('['):
+        # Try to parse as JSON
+        if response.strip().startswith('['):
+            try:
                 entity_data = json.loads(response)
                 for item in entity_data:
                     entity = Entity(
@@ -221,16 +255,25 @@ Entities (JSON format):"""
                         confidence=item.get("confidence", 1.0)
                     )
                     entities.append(entity)
-        except json.JSONDecodeError:
-            # Fallback: parse as text lines
-            lines = response.strip().split('\n')
-            for line in lines:
-                if '-' in line or ':' in line:
-                    parts = line.replace('-', ':').split(':')
-                    if len(parts) >= 2:
-                        entity_type = parts[0].strip()
-                        entity_text = ':'.join(parts[1:]).strip()
-                        entities.append(Entity(entity_text, entity_type))
+                return entities  # Return early if JSON parsing succeeded
+            except json.JSONDecodeError:
+                pass  # Fall through to text parsing
+
+        # Fallback: parse as text lines
+        lines = response.strip().split('\n')
+        for line in lines:
+            if ':' in line:
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    entity_type = parts[0].strip().upper()
+                    if entity_type == "ORGANIZATION":
+                        entity_type = "ORG"
+                    entity_text = parts[1].strip()
+                    entities.append(Entity(
+                        text=entity_text,
+                        entity_type=entity_type,
+                        confidence=1.0
+                    ))
 
         return entities
 
@@ -426,20 +469,47 @@ Answer:"""
         Returns:
             LLM response
         """
-        # This is a placeholder - actual implementation would call OpenAI/Anthropic API
-        await asyncio.sleep(0.1)  # Simulate API call
+        max_tokens = max_tokens or self.max_tokens
+        temperature = temperature or self.temperature
 
-        # For now, return a mock response
-        if "summary" in prompt.lower():
-            return "This is a generated summary of the provided text highlighting the key points and main ideas."
-        elif "entities" in prompt.lower():
-            return '[{"text": "Example Entity", "type": "ORGANIZATION", "confidence": 0.9}]'
-        elif "classify" in prompt.lower():
-            return "Category: Technical Documentation\nConfidence: 0.85"
-        elif "question" in prompt.lower():
-            return "Based on the provided context, the answer to your question is..."
-        else:
-            return "Generated response from LLM."
+        try:
+            if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
+                response = await self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                return response.content[0].text
+
+            elif self.provider == LLMProvider.OPENAI and self.openai_client:
+                response = await self.openai_client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                return response.choices[0].message.content
+
+            else:
+                # Fallback for testing without API keys
+                self.logger.warning(f"No API client configured for {self.provider}, using mock response")
+                await asyncio.sleep(0.1)  # Simulate API latency
+
+                if "summary" in prompt.lower():
+                    return "This is a generated summary of the provided text highlighting the key points and main ideas."
+                elif "entities" in prompt.lower():
+                    return '[{"text": "Example Entity", "type": "ORG", "confidence": 0.9}]'
+                elif "classify" in prompt.lower():
+                    return "Category: Technical Documentation\nConfidence: 0.85"
+                elif "question" in prompt.lower():
+                    return "Based on the provided context, the answer to your question is..."
+                else:
+                    return "Generated response from LLM."
+
+        except Exception as e:
+            self.logger.error(f"LLM API call failed: {str(e)}")
+            raise
 
     async def generate_embeddings(
         self,
@@ -461,15 +531,26 @@ Answer:"""
             model=model
         ):
             try:
-                # This is a placeholder - actual implementation would call embedding API
-                await asyncio.sleep(0.1)
+                if self.openai_client:
+                    # Use OpenAI for embeddings (Anthropic doesn't have embeddings API)
+                    response = await self.openai_client.embeddings.create(
+                        model=model,
+                        input=text
+                    )
+                    embeddings = response.data[0].embedding
+                    self.logger.info(f"Generated embeddings of dimension {len(embeddings)}")
+                    return embeddings
+                else:
+                    # Fallback for testing without API keys
+                    self.logger.warning("No OpenAI client configured, using mock embeddings")
+                    await asyncio.sleep(0.1)
 
-                # Return mock embeddings (normally would be 1536 dimensions for ada-002)
-                import random
-                embeddings = [random.random() for _ in range(384)]  # Smaller for demo
+                    # Return mock embeddings (normally would be 1536 dimensions for ada-002)
+                    import random
+                    embeddings = [random.random() for _ in range(384)]  # Smaller for demo
 
-                self.logger.info(f"Generated embeddings of dimension {len(embeddings)}")
-                return embeddings
+                    self.logger.info(f"Generated mock embeddings of dimension {len(embeddings)}")
+                    return embeddings
 
             except Exception as e:
                 self.logger.error(f"Failed to generate embeddings: {str(e)}")

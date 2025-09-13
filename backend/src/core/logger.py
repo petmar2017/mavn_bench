@@ -29,7 +29,18 @@ class CentralizedLogger:
     
     def _get_console_formatter(self) -> logging.Formatter:
         """Human-readable console format"""
-        return logging.Formatter(
+        class ConsoleFormatter(logging.Formatter):
+            def format(self, record):
+                # Add default values for missing fields
+                record.trace_id = getattr(record, 'trace_id', 'no-trace')
+                record.span_id = getattr(record, 'span_id', 'no-span')
+                record.user_id = getattr(record, 'user_id', None)
+                record.session_id = getattr(record, 'session_id', None)
+
+                # Use the parent format method
+                return super().format(record)
+
+        return ConsoleFormatter(
             '%(asctime)s - %(name)s - %(levelname)s - [%(trace_id)s] - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
@@ -53,12 +64,18 @@ class CentralizedLogger:
     
     def _inject_trace_context(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Inject current trace context into log extras"""
+        kwargs['extra'] = kwargs.get('extra', {})
+
         span = trace.get_current_span()
         if span and span.is_recording():
             span_context = span.get_span_context()
-            kwargs['extra'] = kwargs.get('extra', {})
             kwargs['extra']['trace_id'] = format(span_context.trace_id, '032x')
             kwargs['extra']['span_id'] = format(span_context.span_id, '016x')
+        else:
+            # Provide default values when no span is active
+            kwargs['extra']['trace_id'] = 'no-trace'
+            kwargs['extra']['span_id'] = 'no-span'
+
         return kwargs
     
     def debug(self, message: str, **kwargs):

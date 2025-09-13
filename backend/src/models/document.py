@@ -40,22 +40,104 @@ class DocumentAction(str, Enum):
     FILTER = "filter"
     RESET_FILTER = "reset_filter"
 
+class ProcessingStage(str, Enum):
+    """Processing stage for documents"""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class DocumentSource(str, Enum):
+    """Source of the document"""
+    UPLOAD = "upload"
+    WEB = "web"
+    YOUTUBE = "youtube"
+    API = "api"
+    MANUAL = "manual"
+
 class DocumentMetadata(BaseModel):
+    # Core identifiers (support both patterns)
     document_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: Optional[str] = None  # Alias for document_id
+
+    # Document classification
     document_type: DocumentType
+    type: Optional[DocumentType] = None  # Alias for document_type
+
+    # Document info
     name: str
+    title: Optional[str] = None  # Alias for name
     summary: Optional[str] = None
+
+    # Access control
     access_permission: AccessPermission = AccessPermission.READ
     access_group: AccessGroup = AccessGroup.ME
+
+    # Timestamps (support both patterns)
     created_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = None  # Alias
     created_user: str
+
     updated_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None  # Alias
     updated_user: str
+
+    # Version and processing
     version: int = 1
-    tags: List[str] = Field(default_factory=list)
+    processing_stage: Optional[ProcessingStage] = ProcessingStage.PENDING
+
+    # Source and references
+    source: Optional[DocumentSource] = None
     source_url: Optional[str] = None
+    original_url: Optional[str] = None  # Alias for source_url
+
+    # Metadata
+    tags: List[str] = Field(default_factory=list)
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
+
+    def model_post_init(self, __context):
+        """Handle field aliases after initialization"""
+        # Sync id with document_id
+        if self.id and not self.document_id:
+            self.document_id = self.id
+        elif self.document_id and not self.id:
+            self.id = self.document_id
+
+        # Sync type with document_type
+        if self.type and not self.document_type:
+            self.document_type = self.type
+        elif self.document_type and not self.type:
+            self.type = self.document_type
+
+        # Sync title with name
+        if self.title and not self.name:
+            self.name = self.title
+        elif self.name and not self.title:
+            self.title = self.name
+
+        # Sync timestamps
+        if self.created_at and not self.created_timestamp:
+            self.created_timestamp = self.created_at
+        elif self.created_timestamp and not self.created_at:
+            self.created_at = self.created_timestamp
+
+        if self.updated_at and not self.updated_timestamp:
+            self.updated_timestamp = self.updated_at
+        elif self.updated_timestamp and not self.updated_at:
+            self.updated_at = self.updated_timestamp
+
+        # Sync URLs
+        if self.original_url and not self.source_url:
+            self.source_url = self.original_url
+        elif self.source_url and not self.original_url:
+            self.original_url = self.source_url
+
+class ContentBlock(BaseModel):
+    """A block of content with type and metadata"""
+    type: str  # text, markdown, code, image, etc.
+    content: str
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 class DocumentContent(BaseModel):
     formatted_content: Optional[str] = Field(None, description="Markdown formatted content")
@@ -63,6 +145,7 @@ class DocumentContent(BaseModel):
     structured_data: Optional[Dict[str, Any]] = Field(None, description="For JSON, XML, CSV")
     binary_data: Optional[str] = Field(None, description="Base64 encoded binary")
     embeddings: Optional[List[float]] = Field(None, description="Vector embeddings for search")
+    blocks: Optional[List[ContentBlock]] = Field(default_factory=list, description="Content blocks")
 
 class DocumentVersion(BaseModel):
     version: int
