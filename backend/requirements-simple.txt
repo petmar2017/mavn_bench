@@ -1,0 +1,28 @@
+# Simplified requirements for Python 3.13 compatibility
+
+# FastAPI and async
+fastapi
+uvicorn[standard]
+httpx
+aiofiles
+
+# Configuration
+pyyaml
+
+# Database
+sqlalchemy
+alembic
+
+# Redis
+redis
+
+# Utilities
+python-multipart
+python-dateutil
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+black
+isort
