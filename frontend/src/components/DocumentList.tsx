@@ -80,12 +80,18 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // Parse the UTC date from server and convert to local timezone
+    const date = new Date(dateString);
+
+    // Use toLocaleString to properly display date and time in user's timezone
+    return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
+      hour12: true,  // Use 12-hour format with AM/PM
+      timeZoneName: 'short'  // Optionally show timezone abbreviation
     });
   };
 

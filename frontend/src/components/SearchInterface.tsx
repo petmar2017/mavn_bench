@@ -3,7 +3,7 @@ import { Search, FileText, HardDrive } from 'lucide-react';
 import classNames from 'classnames';
 import { searchApi } from '../services/api';
 import type { SearchResult } from '../services/api';
-import { formatFileSize } from '../utils/format';
+import { formatFileSize, formatLocalDateTime } from '../utils/format';
 import styles from './SearchInterface.module.css';
 
 type SearchType = 'vector' | 'fulltext' | 'graph' | 'hybrid';
@@ -61,17 +61,30 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
   };
 
   const highlightQuery = (text: string) => {
-    if (!query) return text;
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
-    return parts.map((part, index) =>
-      part.toLowerCase() === query.toLowerCase() ? (
-        <span key={index} className={styles.resultHighlight}>
-          {part}
-        </span>
-      ) : (
-        part
-      )
-    );
+    if (!query || !text) return text;
+
+    try {
+      // Escape special regex characters in the query
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'));
+
+      return (
+        <>
+          {parts.map((part, index) =>
+            part.toLowerCase() === query.toLowerCase() ? (
+              <span key={index} className={styles.resultHighlight}>
+                {part}
+              </span>
+            ) : (
+              part
+            )
+          )}
+        </>
+      );
+    } catch (error) {
+      // If regex fails, return the original text
+      return text;
+    }
   };
 
   const getSearchTypeDescription = () => {
@@ -206,7 +219,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
                   )}
                   {result.metadata.created_at && (
                     <span>
-                      {new Date(result.metadata.created_at).toLocaleDateString()}
+                      {formatLocalDateTime(result.metadata.created_at)}
                     </span>
                   )}
                 </div>

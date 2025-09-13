@@ -295,7 +295,8 @@ describe('API Service', () => {
 
     describe('fulltextSearch', () => {
       it('should perform fulltext search successfully', async () => {
-        mockApi.post.mockResolvedValueOnce({ data: mockSearchResults });
+        // Backend returns SearchResponse with results property
+        mockApi.post.mockResolvedValueOnce({ data: { results: mockSearchResults } });
 
         const result = await searchApi.fulltextSearch(searchQuery);
 
@@ -306,7 +307,8 @@ describe('API Service', () => {
 
     describe('graphSearch', () => {
       it('should perform graph search successfully', async () => {
-        mockApi.post.mockResolvedValueOnce({ data: mockSearchResults });
+        // Backend returns SearchResponse with results property
+        mockApi.post.mockResolvedValueOnce({ data: { results: mockSearchResults } });
 
         const result = await searchApi.graphSearch(searchQuery);
 

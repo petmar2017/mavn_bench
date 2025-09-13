@@ -68,3 +68,57 @@ export function formatRelativeTime(date: string | Date): string {
 
   return 'just now';
 }
+
+/**
+ * Format a UTC date string to local timezone display
+ * @param dateString - The UTC date string from server
+ * @param options - Optional formatting options
+ * @returns Formatted date string in user's local timezone
+ */
+export function formatLocalDateTime(
+  dateString: string | Date,
+  options: Intl.DateTimeFormatOptions = {}
+): string {
+  const date = new Date(dateString);
+
+  // Default options for consistent display
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    ...options  // Allow overriding defaults
+  };
+
+  return date.toLocaleString('en-US', defaultOptions);
+}
+
+/**
+ * Format a UTC date to show only the date in local timezone
+ * @param dateString - The UTC date string from server
+ * @returns Formatted date string (without time)
+ */
+export function formatLocalDate(dateString: string | Date): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+/**
+ * Format a UTC date to show only the time in local timezone
+ * @param dateString - The UTC date string from server
+ * @returns Formatted time string (without date)
+ */
+export function formatLocalTime(dateString: string | Date): string {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+}
