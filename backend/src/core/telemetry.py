@@ -1,5 +1,8 @@
 """OpenTelemetry setup and configuration"""
 
+from contextlib import contextmanager
+from typing import Dict, Any, Optional
+
 from opentelemetry import trace, metrics
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -12,6 +15,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.trace import Status, StatusCode
 
 from .config import get_settings
 
@@ -65,3 +69,39 @@ def get_tracer(name: str) -> trace.Tracer:
 def get_meter(name: str) -> metrics.Meter:
     """Get a meter instance"""
     return metrics.get_meter(name)
+
+
+class TelemetryManager:
+    """Manager class for telemetry operations"""
+
+    def __init__(self, service_name: Optional[str] = None):
+        """Initialize telemetry manager
+
+        Args:
+            service_name: Name of the service for tracing
+        """
+        self.service_name = service_name or "mavn-bench"
+        self.tracer = get_tracer(self.service_name)
+
+    @contextmanager
+    def traced_operation(self, operation_name: str, **attributes):
+        """Create a traced operation context
+
+        Args:
+            operation_name: Name of the operation
+            **attributes: Additional span attributes
+
+        Returns:
+            Trace context manager
+        """
+        with self.tracer.start_as_current_span(
+            operation_name,
+            attributes=attributes
+        ) as span:
+            try:
+                yield span
+                span.set_status(Status(StatusCode.OK))
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                raise
