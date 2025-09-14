@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Frontend UI Standardization (2025-01-14 - Night)
+- **Centralized UI Components**:
+  - Created ViewerTabBar component for consistent tab navigation across all viewers
+  - Created SummaryEditor component for dedicated summary viewing/editing with markdown preview
+  - Created MarkdownContentEditor component for unified Edit/Split/Preview functionality
+  - Standardized tab layouts across PDF, Word, and Markdown viewers
+
+- **Summary Tab Improvements**:
+  - Made Summary the default tab for all document viewers when available
+  - Summary content displayed as formatted markdown with proper styling
+  - Edit functionality with Save/Cancel operations for summary updates
+  - Consistent UI patterns across all document types
+
+- **Code Consolidation**:
+  - Eliminated duplicate markdown editor implementations
+  - Removed redundant CSS styles from individual viewer components
+  - Centralized all markdown-related styles in component-specific CSS modules
+  - Cleaned up legacy code from Bench.module.css
+  - Improved maintainability with single source of truth for each UI pattern
+
+- **Viewer Enhancements**:
+  - PDFViewer: Transcript tab now uses centralized MarkdownContentEditor
+  - WordViewer: Extracted text tab uses centralized MarkdownContentEditor
+  - MarkdownEditor: Content tab uses centralized MarkdownContentEditor
+  - All viewers now have consistent Edit/Split/Preview toggle functionality
+
 ### Async Document Processing Queue (2025-01-14 - Late Evening)
 - **Backend Queue System**:
   - Implemented QueueService for managing document processing queue

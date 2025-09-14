@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { FileText, Loader, CheckCircle, FileType, BookOpen, FileBarChart } from 'lucide-react';
+import { FileText, Loader, CheckCircle, FileType, FileBarChart } from 'lucide-react';
 import classNames from 'classnames';
 import type { DocumentMessage } from '../../services/api';
 import { documentApi } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
 import { logger } from '../../services/logging';
+import { ViewerTabBar } from './ViewerTabBar';
+import type { ViewerTab } from './ViewerTabBar';
+import { SummaryEditor } from './SummaryEditor';
+import { MarkdownContentEditor } from './MarkdownContentEditor';
 import styles from './WordViewer.module.css';
 
 interface WordViewerProps {
@@ -17,11 +21,11 @@ export interface WordViewerRef {
   hasUnsavedChanges: () => boolean;
 }
 
-type ViewMode = 'extracted' | 'original' | 'summary';
+type ViewMode = 'summary' | 'extracted' | 'original';
 
 export const WordViewer = forwardRef<WordViewerRef, WordViewerProps>(
   ({ document, onContentChange }, ref) => {
-    const [viewMode, setViewMode] = useState<ViewMode>('extracted');
+    const [viewMode, setViewMode] = useState<ViewMode>('summary');
     const [extractedText, setExtractedText] = useState('');
     const [originalExtractedText, setOriginalExtractedText] = useState('');
     const [summary, setSummary] = useState('');
@@ -79,14 +83,6 @@ export const WordViewer = forwardRef<WordViewerRef, WordViewerProps>(
       }
     }, [originalExtractedText, originalSummary, summary, onContentChange]);
 
-    const handleSummaryChange = useCallback((value: string) => {
-      setSummary(value);
-      const hasChanges = extractedText !== originalExtractedText || value !== originalSummary;
-      setIsModified(hasChanges);
-      if (hasChanges) {
-        onContentChange?.();
-      }
-    }, [originalExtractedText, originalSummary, extractedText, onContentChange]);
 
     // Save document with version history
     const handleSave = async () => {
@@ -179,41 +175,20 @@ export const WordViewer = forwardRef<WordViewerRef, WordViewerProps>(
       );
     }
 
+    const tabs: ViewerTab[] = [
+      { id: 'summary', label: 'Summary', icon: <FileBarChart size={16} /> },
+      { id: 'extracted', label: 'Extracted', icon: <FileType size={16} /> },
+      { id: 'original', label: 'Original', icon: <FileText size={16} /> },
+    ];
+
     return (
       <div className={styles.wordViewer}>
+        <ViewerTabBar
+          tabs={tabs}
+          activeTab={viewMode}
+          onTabChange={(tabId) => setViewMode(tabId as ViewMode)}
+        />
         <div className={styles.editorToolbar}>
-          <div className={styles.viewModeButtons}>
-            <button
-              className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'extracted',
-              })}
-              onClick={() => setViewMode('extracted')}
-              title="View/Edit Extracted Text"
-            >
-              <FileType size={16} />
-              Extracted
-            </button>
-            <button
-              className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'original',
-              })}
-              onClick={() => setViewMode('original')}
-              title="View Original Content"
-            >
-              <FileText size={16} />
-              Original
-            </button>
-            <button
-              className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'summary',
-              })}
-              onClick={() => setViewMode('summary')}
-              title="View/Edit Summary"
-            >
-              <FileBarChart size={16} />
-              Summary
-            </button>
-          </div>
 
           <div className={styles.editorActions}>
             {saveSuccess && (
@@ -227,23 +202,17 @@ export const WordViewer = forwardRef<WordViewerRef, WordViewerProps>(
 
         <div className={styles.editorContainer}>
           {viewMode === 'extracted' && (
-            <div className={styles.editorPane}>
-              <textarea
-                className={styles.editorTextarea}
-                value={extractedText}
-                onChange={(e) => handleExtractedTextChange(e.target.value)}
-                placeholder="Document text extracted as markdown..."
-                spellCheck={false}
-              />
-            </div>
+            <MarkdownContentEditor
+              content={extractedText}
+              onChange={handleExtractedTextChange}
+              isModified={isModified}
+            />
           )}
 
           {viewMode === 'original' && (
             <div className={styles.previewPane}>
               {originalContent ? (
-                <div className={styles.markdownPreview}>
-                  <pre className={styles.originalContent}>{originalContent}</pre>
-                </div>
+                <pre className={styles.originalContent}>{originalContent}</pre>
               ) : (
                 <div className={styles.emptyState}>
                   <FileText size={48} />
@@ -258,15 +227,17 @@ export const WordViewer = forwardRef<WordViewerRef, WordViewerProps>(
           )}
 
           {viewMode === 'summary' && (
-            <div className={styles.editorPane}>
-              <textarea
-                className={styles.editorTextarea}
-                value={summary}
-                onChange={(e) => handleSummaryChange(e.target.value)}
-                placeholder="Document summary..."
-                spellCheck={true}
-              />
-            </div>
+            <SummaryEditor
+              documentId={document.metadata.document_id}
+              summary={summary}
+              onSave={(newSummary) => {
+                setSummary(newSummary);
+                setOriginalSummary(newSummary);
+                setIsModified(false);
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+              }}
+            />
           )}
         </div>
 

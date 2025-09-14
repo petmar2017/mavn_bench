@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { FileText, Loader, CheckCircle, FileType, BookOpen, FileBarChart } from 'lucide-react';
-import classNames from 'classnames';
+import { FileText, Loader, CheckCircle, FileType, FileBarChart } from 'lucide-react';
 import type { DocumentMessage } from '../../services/api';
 import { documentApi } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
 import { logger } from '../../services/logging';
+import { ViewerTabBar } from './ViewerTabBar';
+import type { ViewerTab } from './ViewerTabBar';
+import { SummaryEditor } from './SummaryEditor';
+import { MarkdownContentEditor } from './MarkdownContentEditor';
 import styles from './PDFViewer.module.css';
 
 interface PDFViewerProps {
@@ -17,11 +20,11 @@ export interface PDFViewerRef {
   hasUnsavedChanges: () => boolean;
 }
 
-type ViewMode = 'transcript' | 'original' | 'summary';
+type ViewMode = 'summary' | 'transcript' | 'original';
 
 export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
   ({ document, onContentChange }, ref) => {
-    const [viewMode, setViewMode] = useState<ViewMode>('transcript');
+    const [viewMode, setViewMode] = useState<ViewMode>('summary');
     const [transcript, setTranscript] = useState('');
     const [originalTranscript, setOriginalTranscript] = useState('');
     const [summary, setSummary] = useState('');
@@ -81,14 +84,6 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
       }
     }, [originalTranscript, originalSummary, summary, onContentChange]);
 
-    const handleSummaryChange = useCallback((value: string) => {
-      setSummary(value);
-      const hasChanges = transcript !== originalTranscript || value !== originalSummary;
-      setIsModified(hasChanges);
-      if (hasChanges) {
-        onContentChange?.();
-      }
-    }, [originalTranscript, originalSummary, transcript, onContentChange]);
 
     // Save document with version history
     const handleSave = async () => {
@@ -181,41 +176,20 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
       );
     }
 
+    const tabs: ViewerTab[] = [
+      { id: 'summary', label: 'Summary', icon: <FileBarChart size={16} /> },
+      { id: 'transcript', label: 'Transcript', icon: <FileType size={16} /> },
+      { id: 'original', label: 'Original', icon: <FileText size={16} /> },
+    ];
+
     return (
       <div className={styles.pdfViewer}>
+        <ViewerTabBar
+          tabs={tabs}
+          activeTab={viewMode}
+          onTabChange={(tabId) => setViewMode(tabId as ViewMode)}
+        />
         <div className={styles.editorToolbar}>
-          <div className={styles.viewModeButtons}>
-            <button
-              className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'transcript',
-              })}
-              onClick={() => setViewMode('transcript')}
-              title="View/Edit Transcript"
-            >
-              <FileType size={16} />
-              Transcript
-            </button>
-            <button
-              className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'original',
-              })}
-              onClick={() => setViewMode('original')}
-              title="View Original PDF"
-            >
-              <FileText size={16} />
-              Original
-            </button>
-            <button
-              className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'summary',
-              })}
-              onClick={() => setViewMode('summary')}
-              title="View/Edit Summary"
-            >
-              <FileBarChart size={16} />
-              Summary
-            </button>
-          </div>
 
           <div className={styles.editorActions}>
             {saveSuccess && (
@@ -229,15 +203,11 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
 
         <div className={styles.editorContainer}>
           {viewMode === 'transcript' && (
-            <div className={styles.editorPane}>
-              <textarea
-                className={styles.editorTextarea}
-                value={transcript}
-                onChange={(e) => handleTranscriptChange(e.target.value)}
-                placeholder="PDF transcript (converted to markdown)..."
-                spellCheck={false}
-              />
-            </div>
+            <MarkdownContentEditor
+              content={transcript}
+              onChange={handleTranscriptChange}
+              isModified={isModified}
+            />
           )}
 
           {viewMode === 'original' && (
@@ -262,15 +232,17 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
           )}
 
           {viewMode === 'summary' && (
-            <div className={styles.editorPane}>
-              <textarea
-                className={styles.editorTextarea}
-                value={summary}
-                onChange={(e) => handleSummaryChange(e.target.value)}
-                placeholder="Document summary..."
-                spellCheck={true}
-              />
-            </div>
+            <SummaryEditor
+              documentId={document.metadata.document_id}
+              summary={summary}
+              onSave={(newSummary) => {
+                setSummary(newSummary);
+                setOriginalSummary(newSummary);
+                setIsModified(false);
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+              }}
+            />
           )}
         </div>
 

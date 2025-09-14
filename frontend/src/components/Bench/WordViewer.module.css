@@ -56,35 +56,6 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.viewModeButtons {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.modeButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 0.375rem;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.modeButton:hover {
-  background: var(--color-hover);
-  color: var(--color-text);
-}
-
-.modeButton.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
-}
 
 .editorActions {
   display: flex;
@@ -118,29 +89,6 @@
   overflow: hidden;
 }
 
-.editorPane {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.editorTextarea {
-  flex: 1;
-  padding: 1rem;
-  border: none;
-  background: var(--color-background);
-  color: var(--color-text);
-  font-family: 'Monaco', 'Courier New', monospace;
-  font-size: 0.875rem;
-  line-height: 1.6;
-  resize: none;
-  outline: none;
-}
-
-.editorTextarea:focus {
-  background: var(--color-background-secondary);
-}
 
 .previewPane {
   flex: 1;
@@ -148,10 +96,7 @@
   background: var(--color-background);
 }
 
-.markdownPreview {
-  padding: 1rem;
-  color: var(--color-text);
-}
+/* Removed .markdownPreview - using centralized MarkdownContentEditor styles */
 
 .originalContent {
   font-family: 'Monaco', 'Courier New', monospace;

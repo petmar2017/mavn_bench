@@ -1,0 +1,92 @@
+.tabBar {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  position: relative;
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--bg-primary);
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.tabIcon {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+}
+
+.tabLabel {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .tab {
+    padding: 0 12px;
+  }
+
+  .tabLabel {
+    font-size: 13px;
+  }
+
+  .tabIcon {
+    font-size: 14px;
+  }
+}
