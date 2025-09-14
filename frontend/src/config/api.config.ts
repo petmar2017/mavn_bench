@@ -14,7 +14,7 @@ export const API_BASE_URL =
 // Determine the WebSocket URL based on environment
 export const WS_URL =
   import.meta.env.VITE_WS_URL ||
-  (import.meta.env.DEV ? '' : DEFAULT_BACKEND_URL.replace('http', 'ws'));
+  (import.meta.env.DEV ? 'ws://localhost:8000' : DEFAULT_BACKEND_URL.replace('http', 'ws'));
 
 // API endpoints configuration
 export const API_ENDPOINTS = {

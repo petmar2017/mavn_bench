@@ -138,7 +138,10 @@ class CentralizedLogger:
         span = trace.get_current_span()
         if span and span.is_recording():
             if 'exc_info' in kwargs:
-                span.record_exception(kwargs['exc_info'])
+                # Only record if exc_info is an actual exception, not True
+                exc_info = kwargs.get('exc_info')
+                if exc_info and exc_info is not True and hasattr(exc_info, '__traceback__'):
+                    span.record_exception(exc_info)
             span.set_status(Status(StatusCode.ERROR, message))
     
     def critical(self, message: str, **kwargs):

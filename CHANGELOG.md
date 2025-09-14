@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### WebSocket and Document Upload Fixes (2025-01-14 - Late Night Session 2)
+- **WebSocket Connection Fixes**:
+  - Fixed WebSocket URL configuration to properly connect to backend port 8000 instead of frontend port 5173
+  - Updated `frontend/src/config/api.config.ts` to use correct WebSocket URL in development mode
+  - Resolved Socket.IO connection failures that were preventing real-time updates
+
+- **Document Upload System Fixes**:
+  - Fixed datetime serialization issue in WebSocket events ("datetime is not JSON serializable")
+  - Added `.isoformat()` conversion for datetime objects before WebSocket emission
+  - Fixed "'bool' object has no attribute '__traceback__'" error in exception handling
+  - Updated error handling in `documents.py` to properly check for exception attributes
+  - Fixed logger's `exc_info` handling to avoid passing boolean to `span.record_exception()`
+
+- **Queue Service Improvements**:
+  - Fixed DocumentMetadata field error where queue service tried to set non-existent `file_path` field
+  - Implemented separate Redis storage for file paths using key pattern `file_path:{document_id}`
+  - Updated queue processing to retrieve file paths from Redis instead of document metadata
+  - Improved error handling and recovery in document processing pipeline
+
+- **Error Handling Enhancements**:
+  - Added proper exception type checking before calling `span.record_exception()`
+  - Improved logging with `exc_info=True` support without breaking OpenTelemetry tracing
+  - Added fallback error attributes when exceptions don't have traceback information
+
 ### Logger Improvements and Frontend Configuration (2025-01-14 - Late Night)
 - **Logger Enhancements**:
   - Made service names bold and colored to match log levels for better visual hierarchy

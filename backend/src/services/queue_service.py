@@ -180,11 +180,16 @@ class QueueService(BaseService):
                 if not document:
                     raise ValueError(f"Document {document_id} not found in storage")
 
-                # Store file path in document metadata for processing
-                document.metadata.file_path = file_path
+                # Update processing stage
                 document.metadata.processing_stage = ProcessingStage.PENDING
 
-                # Enqueue in Redis
+                # Store file path in Redis separately
+                import redis.asyncio as redis
+                redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+                await redis_client.set(f"file_path:{document_id}", file_path, ex=3600)  # 1 hour TTL
+                await redis_client.close()
+
+                # Enqueue document in Redis
                 success = await self.redis_queue.enqueue(document)
 
                 if success:
@@ -584,7 +589,15 @@ class QueueService(BaseService):
     async def _process_redis_document(self, document: DocumentMessage):
         """Process a document from Redis queue"""
         document_id = document.metadata.document_id
-        file_path = document.metadata.file_path
+
+        # Retrieve file path from Redis
+        import redis.asyncio as redis
+        redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+        file_path = await redis_client.get(f"file_path:{document_id}")
+        await redis_client.close()
+
+        if not file_path:
+            raise ValueError(f"No file_path found for document {document_id}")
 
         try:
             logger.info(f"Processing document {document_id} from Redis queue")

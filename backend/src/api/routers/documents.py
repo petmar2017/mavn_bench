@@ -647,8 +647,8 @@ async def upload_document(
                             "id": created.metadata.id,
                             "name": created.metadata.name,
                             "document_type": created.metadata.document_type.value,
-                            "created_at": created.metadata.created_at,
-                            "updated_at": created.metadata.updated_at
+                            "created_at": created.metadata.created_at.isoformat() if hasattr(created.metadata.created_at, 'isoformat') else str(created.metadata.created_at),
+                            "updated_at": created.metadata.updated_at.isoformat() if hasattr(created.metadata.updated_at, 'isoformat') else str(created.metadata.updated_at)
                         }
                     }
 
@@ -742,8 +742,8 @@ async def upload_document(
                         "id": created.metadata.id,
                         "name": created.metadata.name,
                         "document_type": created.metadata.document_type.value,
-                        "created_at": created.metadata.created_at,
-                        "updated_at": created.metadata.updated_at,
+                        "created_at": created.metadata.created_at.isoformat() if hasattr(created.metadata.created_at, 'isoformat') else str(created.metadata.created_at),
+                        "updated_at": created.metadata.updated_at.isoformat() if hasattr(created.metadata.updated_at, 'isoformat') else str(created.metadata.updated_at),
                         "processing_stage": created.metadata.processing_stage.value if created.metadata.processing_stage else None
                     }
                 }
@@ -816,8 +816,13 @@ async def upload_document(
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to upload document: {str(e)}")
-            span.record_exception(e)
+            logger.error(f"Failed to upload document: {str(e)}", exc_info=True)
+            # Only record exception if it has the __traceback__ attribute
+            if hasattr(e, '__traceback__'):
+                span.record_exception(e)
+            else:
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", str(e))
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to process uploaded file: {str(e)}"
