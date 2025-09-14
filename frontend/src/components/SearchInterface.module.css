@@ -269,6 +269,14 @@
   margin-bottom: 0.75rem;
 }
 
+.resultActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+
 .resultIcon {
   color: var(--text-secondary, #718096);
 }

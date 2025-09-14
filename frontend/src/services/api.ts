@@ -47,12 +47,20 @@ export interface DocumentContent {
   embeddings?: number[];
 }
 
+export interface DocumentVersion {
+  version: number;
+  timestamp: string;
+  user: string;
+  changes: Record<string, any>;
+  commit_message?: string;
+}
+
 export interface DocumentMessage {
   id?: string;  // ID field returned by upload endpoint
   metadata: DocumentMetadata;
   content: DocumentContent;
   tools?: string[];
-  history?: any[];
+  history?: DocumentVersion[];
   audit_log?: any[];
 }
 
@@ -127,6 +135,12 @@ export const documentApi = {
       params: { soft_delete: false }
     });
     return response.data;
+  },
+
+  // Version history methods
+  async getDocumentVersions(documentId: string) {
+    const response = await api.get<DocumentVersion[]>(`/api/documents/${documentId}/versions`);
+    return response;
   },
 };
 

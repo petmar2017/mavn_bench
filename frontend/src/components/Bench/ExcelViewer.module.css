@@ -1,0 +1,94 @@
+/* Excel Viewer Module CSS */
+
+.excelViewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.excelToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.excelInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.excelActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.gridContainer {
+  flex: 1;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+  color: var(--color-text-secondary);
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--color-primary);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.errorContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+}
+
+.errorMessage {
+  color: var(--color-error);
+  background: var(--color-danger-bg);
+  padding: 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-error);
+}
+
+/* AG-Grid Theme Overrides */
+.gridContainer :global(.ag-theme-alpine) {
+  --ag-background-color: var(--color-background);
+  --ag-header-background-color: var(--color-background-secondary);
+  --ag-odd-row-background-color: var(--color-background-secondary);
+  --ag-border-color: var(--color-border);
+  --ag-header-foreground-color: var(--color-text);
+  --ag-foreground-color: var(--color-text);
+}
+
+.gridContainer :global(.ag-theme-alpine-dark) {
+  --ag-background-color: var(--color-background);
+  --ag-header-background-color: var(--color-background-secondary);
+  --ag-odd-row-background-color: var(--color-background-secondary);
+  --ag-border-color: var(--color-border);
+  --ag-header-foreground-color: var(--color-text);
+  --ag-foreground-color: var(--color-text);
+}

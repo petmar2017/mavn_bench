@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Search, FileText, HardDrive, X } from 'lucide-react';
+import { Search, FileText, HardDrive, X, Trash2 } from 'lucide-react';
 import classNames from 'classnames';
-import { searchApi } from '../services/api';
+import { searchApi, documentApi } from '../services/api';
 import type { SearchResult } from '../services/api';
 import { formatFileSize, formatLocalDateTime } from '../utils/format';
 import styles from './SearchInterface.module.css';
@@ -18,11 +18,12 @@ interface SearchState {
 
 interface SearchInterfaceProps {
   onResultSelect?: (result: SearchResult) => void;
+  onResultDelete?: (documentId: string) => void;
   searchState?: SearchState;
   onSearchStateChange?: (state: SearchState) => void;
 }
 
-export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect, searchState, onSearchStateChange }) => {
+export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect, onResultDelete, searchState, onSearchStateChange }) => {
   // Use passed state if available, otherwise use local state
   const [localState, setLocalState] = useState<SearchState>({
     query: '',
@@ -104,6 +105,25 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
       error: null,
       hasSearched: false
     });
+  };
+
+  const handleDeleteResult = async (e: React.MouseEvent, documentId: string) => {
+    e.stopPropagation(); // Prevent triggering result selection
+
+    try {
+      await documentApi.deleteDocument(documentId);
+
+      // Remove the deleted item from results
+      setState({
+        ...currentState,
+        results: currentState.results.filter(r => r.document_id !== documentId)
+      });
+
+      // Call the parent delete handler if provided
+      onResultDelete?.(documentId);
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+    }
   };
 
   const highlightQuery = (text: string) => {
@@ -242,11 +262,20 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
                 <div className={styles.resultTitle}>
                   {result.metadata?.name || `Document ${index + 1}`}
                 </div>
-                {result.score && (
-                  <div className={styles.resultScore}>
-                    {(result.score * 100).toFixed(0)}% match
-                  </div>
-                )}
+                <div className={styles.resultActions}>
+                  {result.score && (
+                    <div className={styles.resultScore}>
+                      {(result.score * 100).toFixed(0)}% match
+                    </div>
+                  )}
+                  <button
+                    className="delete-button"
+                    onClick={(e) => handleDeleteResult(e, result.document_id)}
+                    title="Delete document"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
 
               {result.highlights && Array.isArray(result.highlights) && result.highlights.length > 0 && (

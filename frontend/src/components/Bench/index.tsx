@@ -1,8 +1,9 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { X, Save, Download, History, Maximize2, Minimize2 } from 'lucide-react';
+import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { X, Save, Download, History, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import classNames from 'classnames';
-import { DocumentBench } from './DocumentBench';
+import { DocumentBench, type DocumentBenchRef } from './DocumentBench';
 import { DocumentTabs } from './DocumentTabs';
+import { documentApi } from '../../services/api';
 import type { DocumentMessage } from '../../services/api';
 import { logger } from '../../services/logging';
 import styles from './Bench.module.css';
@@ -10,21 +11,24 @@ import styles from './Bench.module.css';
 interface BenchProps {
   selectedDocument: DocumentMessage | null;
   onClose?: () => void;
+  onHistoryClick?: (documentId: string) => void;
 }
 
 export interface BenchRef {
   closeDocument: (documentId: string) => void;
 }
 
-export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClose }, ref) => {
+export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClose, onHistoryClick }, ref) => {
   logger.debug('Bench component render', { selectedDocument });
   const [openDocuments, setOpenDocuments] = useState<DocumentMessage[]>([]);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
+  const documentBenchRef = useRef<DocumentBenchRef>(null);
 
   // Define handleCloseDocument before useImperativeHandle
   const handleCloseDocument = (documentId: string) => {
+    logger.info('handleCloseDocument called', { documentId });
     setOpenDocuments(prev => prev.filter(doc => doc.metadata.document_id !== documentId));
 
     // If closing the active document, switch to another one
@@ -69,13 +73,22 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
   }, [selectedDocument, openDocuments]);
 
   const handleSaveDocument = async (documentId: string) => {
-    // TODO: Implement save functionality
-    logger.info('Saving document', { documentId });
-    setUnsavedChanges(prev => {
-      const newMap = new Map(prev);
-      newMap.set(documentId, false);
-      return newMap;
-    });
+    try {
+      // Call the save function from the document editor
+      if (documentBenchRef.current) {
+        await documentBenchRef.current.save();
+        logger.info('Document saved successfully', { documentId });
+
+        // Clear unsaved changes after successful save
+        setUnsavedChanges(prev => {
+          const newMap = new Map(prev);
+          newMap.set(documentId, false);
+          return newMap;
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to save document', { documentId, error });
+    }
   };
 
   const handleDocumentChange = (documentId: string) => {
@@ -84,6 +97,25 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
       newMap.set(documentId, true);
       return newMap;
     });
+  };
+
+  const handleDeleteDocument = async (documentId: string, isHardDelete: boolean) => {
+    try {
+      if (isHardDelete) {
+        // Permanent delete
+        await documentApi.deleteDocument(documentId, { params: { soft_delete: false } });
+        logger.info('Document permanently deleted', { documentId });
+      } else {
+        // Soft delete
+        await documentApi.deleteDocument(documentId);
+        logger.info('Document soft deleted', { documentId });
+      }
+
+      // Always close the document tab after deletion (both soft and hard delete)
+      handleCloseDocument(documentId);
+    } catch (error) {
+      logger.error('Failed to delete document', { documentId, error });
+    }
   };
 
   const activeDocument = openDocuments.find(doc => doc.metadata.document_id === activeDocumentId);
@@ -108,16 +140,34 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
           unsavedChanges={unsavedChanges}
           onSelectDocument={setActiveDocumentId}
           onCloseDocument={handleCloseDocument}
+          onDeleteDocument={handleDeleteDocument}
         />
 
         <div className={styles.benchActions}>
-          {activeDocument && unsavedChanges.get(activeDocumentId!) && (
+          {activeDocument && unsavedChanges.get(activeDocumentId!) && !activeDocument.metadata.deleted && (
             <button
               className={styles.actionButton}
               onClick={() => handleSaveDocument(activeDocumentId!)}
               title="Save document"
             >
               <Save size={18} />
+            </button>
+          )}
+
+          {activeDocument && (
+            <button
+              className={styles.actionButton}
+              onClick={() => {
+                const isDeleted = activeDocument.metadata.deleted;
+                const isHardDelete = isDeleted;
+                if (isHardDelete && !confirm('Permanently delete this document? This cannot be undone.')) {
+                  return;
+                }
+                handleDeleteDocument(activeDocumentId!, isHardDelete);
+              }}
+              title={activeDocument.metadata.deleted ? "Permanently delete document" : "Delete document"}
+            >
+              <Trash2 size={18} />
             </button>
           )}
 
@@ -131,7 +181,12 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
 
           <button
             className={styles.actionButton}
-            onClick={() => logger.info('Version history clicked')}
+            onClick={() => {
+              if (activeDocumentId && onHistoryClick) {
+                onHistoryClick(activeDocumentId);
+                logger.info('Version history clicked', { documentId: activeDocumentId });
+              }
+            }}
             title="Version history"
           >
             <History size={18} />
@@ -150,6 +205,7 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
       <div className={styles.benchContent}>
         {activeDocument && (
           <DocumentBench
+            ref={documentBenchRef}
             document={activeDocument}
             onDocumentChange={() => handleDocumentChange(activeDocumentId!)}
           />

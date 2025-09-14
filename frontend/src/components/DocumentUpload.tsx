@@ -13,71 +13,153 @@ interface UploadState {
 }
 
 interface DocumentUploadProps {
-  onUploadSuccess?: (document: any) => void;
+  onUploadSuccess?: (document: any, uploadId?: string) => void;
+  onFileSelect?: (file: File) => string;
+  updateUploadItem?: (id: string, updates: any) => void;
+  uploadQueue?: any[];
 }
 
-export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onUploadSuccess }) => {
+export const DocumentUpload: React.FC<DocumentUploadProps> = ({
+  onUploadSuccess,
+  onFileSelect,
+  updateUploadItem,
+  uploadQueue
+}) => {
   const [uploadState, setUploadState] = useState<UploadState>({
     isUploading: false,
     error: null,
     success: false,
   });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+  // Check if any items are currently uploading
+  const hasActiveUploads = uploadQueue?.some(item =>
+    item.status === 'uploading' || item.status === 'processing'
+  ) || false;
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    const file = acceptedFiles[0];
-    logger.info('Starting file upload', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type || 'unknown'
-    });
+    // First, add all files to the queue immediately (in pending state)
+    const uploadIds: Array<{ file: File; uploadId: string | null }> = [];
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', file.name);
-    formData.append('type', file.type || 'application/octet-stream');
+    for (const file of acceptedFiles) {
+      logger.info('Adding file to upload queue', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type || 'unknown'
+      });
 
-    setUploadState({ isUploading: true, error: null, success: false });
+      // Add to queue and get the upload ID - files start in 'pending' state by default
+      const uploadId = onFileSelect ? onFileSelect(file) : null;
+      uploadIds.push({ file, uploadId });
+    }
 
-    try {
-      const response = await documentApi.createDocument(formData);
+    // Process files asynchronously after they're all in the queue
+    // Use setTimeout to ensure UI updates first
+    setTimeout(() => {
+      processUploadsSequentially(uploadIds);
+    }, 100);
+  }, [onFileSelect]);
 
-      // Check if response is valid
-      if (!response || !response.id) {
-        throw new Error('Invalid response from server');
+  // Separate function to process uploads sequentially
+  const processUploadsSequentially = useCallback(async (uploadIds: Array<{ file: File; uploadId: string | null }>) => {
+    for (const { file, uploadId } of uploadIds) {
+      // Wait a moment before starting each upload to show pending state
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update status to uploading
+      if (uploadId && updateUploadItem) {
+        updateUploadItem(uploadId, { status: 'uploading', progress: 0 });
       }
 
-      logger.info('File uploaded successfully', {
-        fileName: file.name,
-        documentId: response.id
-      });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', file.name);
+      formData.append('type', file.type || 'application/octet-stream');
 
-      setUploadState({ isUploading: false, error: null, success: true });
-      onUploadSuccess?.(response);
+      // Don't set global uploading state for individual files
+      // The queue will show individual file status
+      try {
+        // Simulate progress updates with delays
+        if (uploadId && updateUploadItem) {
+          setTimeout(() => updateUploadItem(uploadId, { progress: 20 }), 200);
+          setTimeout(() => updateUploadItem(uploadId, { progress: 40 }), 400);
+          setTimeout(() => updateUploadItem(uploadId, { progress: 60 }), 600);
+        }
 
-      // Reset success state after 3 seconds
-      setTimeout(() => {
-        setUploadState(prev => ({ ...prev, success: false }));
-      }, 3000);
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Upload failed. Please try again.';
+        const response = await documentApi.createDocument(formData);
 
-      // Log the error with full context
-      logApiError('/api/documents', error);
-      logger.error('File upload failed', {
-        fileName: file.name,
-        errorMessage,
-        statusCode: error.response?.status
-      });
+        // Check if response is valid
+        if (!response || !response.id) {
+          throw new Error('Invalid response from server');
+        }
 
-      setUploadState({
-        isUploading: false,
-        error: errorMessage,
-        success: false,
-      });
+        // Update to processing status
+        if (uploadId && updateUploadItem) {
+          updateUploadItem(uploadId, { status: 'processing', progress: 80 });
+        }
+
+        logger.info('File uploaded successfully', {
+          fileName: file.name,
+          documentId: response.id
+        });
+
+        // Mark as completed
+        if (uploadId && updateUploadItem) {
+          setTimeout(() => {
+            updateUploadItem(uploadId, { status: 'completed', progress: 100 });
+          }, 500);
+        }
+
+        // Only show success state if this was the last file in a batch
+        const remainingUploads = uploadQueue?.filter(item =>
+          item.status === 'pending' || item.status === 'uploading' || item.status === 'processing'
+        ).length || 0;
+
+        if (remainingUploads <= 1) { // This file plus any remaining
+          setUploadState({ isUploading: false, error: null, success: true });
+          // Reset success state after 3 seconds
+          setTimeout(() => {
+            setUploadState(prev => ({ ...prev, success: false }));
+          }, 3000);
+        }
+
+        // Call the success callback with upload ID
+        onUploadSuccess?.(response, uploadId || undefined);
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.detail || 'Upload failed. Please try again.';
+
+        // Log the error with full context
+        logApiError('/api/documents', error);
+        logger.error('File upload failed', {
+          fileName: file.name,
+          errorMessage,
+          statusCode: error.response?.status
+        });
+
+        // Update queue item with error
+        if (uploadId && updateUploadItem) {
+          updateUploadItem(uploadId, {
+            status: 'error',
+            error: errorMessage
+          });
+        }
+
+        // Only set error state if there are no more files being processed
+        const otherActiveUploads = uploadQueue?.filter(item =>
+          item.id !== uploadId && (item.status === 'uploading' || item.status === 'processing')
+        ).length || 0;
+
+        if (otherActiveUploads === 0) {
+          setUploadState({
+            isUploading: false,
+            error: errorMessage,
+            success: false,
+          });
+        }
+      }
     }
-  }, [onUploadSuccess]);
+  }, [onUploadSuccess, updateUploadItem, uploadQueue]);
 
   const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({
     onDrop,
@@ -90,8 +172,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onUploadSuccess 
       'text/csv': ['.csv'],
       'application/json': ['.json'],
     },
-    maxFiles: 1,
-    disabled: uploadState.isUploading,
+    multiple: true,  // Allow multiple file selection
+    disabled: hasActiveUploads,
   });
 
   return (
@@ -99,17 +181,17 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onUploadSuccess 
       <div
         {...getRootProps()}
         className={classNames(styles.dropzone, {
-          [styles.uploading]: uploadState.isUploading,
+          [styles.uploading]: hasActiveUploads,
           [styles.success]: uploadState.success,
           [styles.error]: uploadState.error,
         })}
       >
         <input {...getInputProps()} />
 
-        {uploadState.isUploading ? (
+        {hasActiveUploads ? (
           <div className={styles.dropzoneContent}>
             <div className={styles.spinner} />
-            <div className={styles.uploadingText}>Uploading...</div>
+            <div className={styles.uploadingText}>Processing files...</div>
           </div>
         ) : uploadState.success ? (
           <div className={styles.dropzoneContent}>

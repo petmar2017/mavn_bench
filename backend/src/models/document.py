@@ -21,6 +21,7 @@ class DocumentType(str, Enum):
     PDF = "pdf"
     WORD = "word"
     EXCEL = "excel"
+    TEXT = "text"
     JSON = "json"
     XML = "xml"
     PODCAST = "podcast"

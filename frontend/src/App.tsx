@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Moon, Sun, FileText, Upload, FolderOpen, Search, Trash2 } from 'lucide-react';
+import { Moon, Sun, FileText, Upload, FolderOpen, Search, Trash2, History } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import classNames from 'classnames';
 import styles from './App.module.css';
@@ -7,6 +7,8 @@ import { DocumentUpload } from './components/DocumentUpload';
 import { DocumentList } from './components/DocumentList';
 import { SearchInterface } from './components/SearchInterface';
 import { TrashList } from './components/TrashList';
+import { VersionHistory } from './components/VersionHistory';
+import { UploadQueue, type UploadItem } from './components/UploadQueue';
 import { Bench } from './components/Bench';
 import { wsService } from './services/websocket';
 import { logger } from './services/logging';
@@ -25,9 +27,11 @@ logger.debug('QueryClient created');
 function AppContent() {
   const [refreshDocuments, setRefreshDocuments] = useState(0);
   const [selectedDocument, setSelectedDocument] = useState<DocumentMessage | null>(null);
-  const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>('dark');
   const [activeTab, setActiveTab] = useState('documents');
   const [toasts, setToasts] = useState<Array<{ id: string; title: string; description: string; type: string }>>([]);
+  const [versionHistoryDocumentId, setVersionHistoryDocumentId] = useState<string | null>(null);
+  const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
   const benchRef = useRef<any>(null);
 
   // Search state - persists across tab switches
@@ -89,7 +93,49 @@ function AppContent() {
     };
   }, []);
 
-  const handleUploadSuccess = (document: DocumentMessage) => {
+  // Upload queue management functions
+  const addToUploadQueue = (file: File): string => {
+    const itemId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const uploadItem: UploadItem = {
+      id: itemId,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || 'unknown',
+      status: 'pending',
+      progress: 0,
+      startTime: Date.now()
+    };
+
+    setUploadQueue(prev => [...prev, uploadItem]);
+    logger.info('Added file to upload queue', { fileName: file.name, itemId });
+    return itemId;
+  };
+
+  const updateUploadItem = (id: string, updates: Partial<UploadItem>) => {
+    setUploadQueue(prev => prev.map(item =>
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  };
+
+  const removeFromQueue = (id: string) => {
+    setUploadQueue(prev => prev.filter(item => item.id !== id));
+    logger.info('Removed item from upload queue', { itemId: id });
+  };
+
+  const clearCompletedUploads = () => {
+    setUploadQueue(prev => prev.filter(item => item.status !== 'completed'));
+    logger.info('Cleared completed uploads from queue');
+  };
+
+  const handleUploadSuccess = (document: DocumentMessage, uploadId?: string) => {
+    if (uploadId) {
+      updateUploadItem(uploadId, {
+        status: 'completed',
+        progress: 100,
+        documentId: document.metadata.document_id
+      });
+    }
+
     if (document && document.metadata && document.metadata.name) {
       showToast({
         title: 'Upload successful',
@@ -155,6 +201,24 @@ function AppContent() {
         type: 'error'
       });
     }
+  };
+
+  const handleSearchResultDelete = (documentId: string) => {
+    // If the deleted document is currently selected in Bench, close it
+    if (selectedDocument?.metadata?.document_id === documentId) {
+      setSelectedDocument(null);
+    }
+    // Also close the tab in Bench if it's open
+    if (benchRef.current) {
+      benchRef.current.closeDocument(documentId);
+    }
+    // Refresh the document list
+    setRefreshDocuments(prev => prev + 1);
+    showToast({
+      title: 'Document deleted',
+      message: 'Document moved to trash',
+      type: 'success'
+    });
   };
 
   return (
@@ -224,12 +288,36 @@ function AppContent() {
               <Trash2 size={20} />
               <span>Trash</span>
             </button>
+            <button
+              className={classNames(styles.sidebarTab, {
+                [styles.active]: activeTab === 'history'
+              })}
+              onClick={() => setActiveTab('history')}
+              title="Version History"
+            >
+              <History size={20} />
+              <span>History</span>
+            </button>
           </div>
 
           <div className={styles.sidebarContent}>
             {activeTab === 'upload' && (
               <div className={styles.sidebarPanel}>
-                <DocumentUpload onUploadSuccess={handleUploadSuccess} />
+                <div className={styles.uploadPanel}>
+                  <DocumentUpload
+                    onUploadSuccess={handleUploadSuccess}
+                    onFileSelect={addToUploadQueue}
+                    updateUploadItem={updateUploadItem}
+                    uploadQueue={uploadQueue}
+                  />
+                  <div className={styles.uploadQueueContainer}>
+                    <UploadQueue
+                      queue={uploadQueue}
+                      onRemoveItem={removeFromQueue}
+                      onClearCompleted={clearCompletedUploads}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -247,6 +335,7 @@ function AppContent() {
               <div className={styles.sidebarPanel}>
                 <SearchInterface
                   onResultSelect={handleSearchResultSelect}
+                  onResultDelete={handleSearchResultDelete}
                   searchState={searchState}
                   onSearchStateChange={setSearchState}
                 />
@@ -254,7 +343,26 @@ function AppContent() {
             )}
             {activeTab === 'trash' && (
               <div className={styles.sidebarPanel}>
-                <TrashList refresh={refreshDocuments} />
+                <TrashList
+                  refresh={refreshDocuments}
+                  onDocumentSelect={handleDocumentSelect}
+                />
+              </div>
+            )}
+            {activeTab === 'history' && (
+              <div className={styles.sidebarPanel}>
+                <VersionHistory
+                  documentId={versionHistoryDocumentId}
+                  onRestoreVersion={(version) => {
+                    // Refresh documents list after restore
+                    setRefreshDocuments(prev => prev + 1);
+                    showToast({
+                      title: 'Version restored',
+                      message: 'Document has been restored to selected version',
+                      type: 'success'
+                    });
+                  }}
+                />
               </div>
             )}
           </div>
@@ -266,6 +374,10 @@ function AppContent() {
             ref={benchRef}
             selectedDocument={selectedDocument}
             onClose={() => setSelectedDocument(null)}
+            onHistoryClick={(documentId) => {
+              setVersionHistoryDocumentId(documentId);
+              setActiveTab('history');
+            }}
           />
         </div>
       </div>

@@ -3,7 +3,7 @@ import { Eye, Edit, Save, Loader } from 'lucide-react';
 import classNames from 'classnames';
 import type { DocumentMessage } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
-import styles from './Bench.module.css';
+import styles from './MarkdownEditor.module.css';
 
 interface MarkdownEditorProps {
   document: DocumentMessage;

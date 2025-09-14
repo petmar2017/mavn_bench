@@ -8,9 +8,10 @@ import styles from './DocumentList.module.css'; // Reuse same styles
 
 interface TrashListProps {
   refresh?: number;
+  onDocumentSelect?: (document: DocumentMessage) => void;
 }
 
-export const TrashList: React.FC<TrashListProps> = ({ refresh }) => {
+export const TrashList: React.FC<TrashListProps> = ({ refresh, onDocumentSelect }) => {
   const [documents, setDocuments] = useState<DocumentMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +133,7 @@ export const TrashList: React.FC<TrashListProps> = ({ refresh }) => {
               <div
                 key={doc.metadata.document_id}
                 className={classNames(styles.tile, styles.deletedTile)}
+                onClick={() => onDocumentSelect?.(doc)}
                 title={doc.metadata.name || 'Untitled Document'}
               >
                 <div className={styles.tileContent}>

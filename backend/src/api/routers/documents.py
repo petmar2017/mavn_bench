@@ -498,6 +498,7 @@ async def upload_document(
                 '.pdf': DocumentType.PDF,
                 '.docx': DocumentType.WORD,
                 '.doc': DocumentType.WORD,
+                '.txt': DocumentType.TEXT,
                 '.xlsx': DocumentType.EXCEL,
                 '.xls': DocumentType.EXCEL,
                 '.json': DocumentType.JSON,

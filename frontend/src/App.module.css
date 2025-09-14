@@ -246,6 +246,18 @@
   height: 100%;
 }
 
+.uploadPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.uploadQueueContainer {
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--color-border);
+}
+
 .panelHeader {
   padding: 1rem;
   background: var(--color-background);

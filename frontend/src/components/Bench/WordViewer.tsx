@@ -5,28 +5,28 @@ import type { DocumentMessage } from '../../services/api';
 import { documentApi } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
 import { logger } from '../../services/logging';
-import styles from './PDFViewer.module.css';
+import styles from './WordViewer.module.css';
 
-interface PDFViewerProps {
+interface WordViewerProps {
   document: DocumentMessage;
   onContentChange?: () => void;
 }
 
-export interface PDFViewerRef {
+export interface WordViewerRef {
   save: () => Promise<void>;
   hasUnsavedChanges: () => boolean;
 }
 
-type ViewMode = 'transcript' | 'original' | 'summary';
+type ViewMode = 'extracted' | 'original' | 'summary';
 
-export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
+export const WordViewer = forwardRef<WordViewerRef, WordViewerProps>(
   ({ document, onContentChange }, ref) => {
-    const [viewMode, setViewMode] = useState<ViewMode>('transcript');
-    const [transcript, setTranscript] = useState('');
-    const [originalTranscript, setOriginalTranscript] = useState('');
+    const [viewMode, setViewMode] = useState<ViewMode>('extracted');
+    const [extractedText, setExtractedText] = useState('');
+    const [originalExtractedText, setOriginalExtractedText] = useState('');
     const [summary, setSummary] = useState('');
     const [originalSummary, setOriginalSummary] = useState('');
-    const [originalPdfUrl, setOriginalPdfUrl] = useState<string | null>(null);
+    const [originalContent, setOriginalContent] = useState('');
     const [isModified, setIsModified] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -43,26 +43,24 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
           const documentId = document.metadata.document_id;
           const contentData = await documentContentService.getContent(documentId);
 
-          // Load transcript (markdown converted from PDF)
-          const transcriptContent = contentData.formatted_content || contentData.text || contentData.raw_text || '';
-          setTranscript(transcriptContent);
-          setOriginalTranscript(transcriptContent);
+          // Load extracted text (markdown converted from Word doc)
+          const extracted = contentData.formatted_content || contentData.text || contentData.raw_text || '';
+          setExtractedText(extracted);
+          setOriginalExtractedText(extracted);
 
           // Load summary if available
           const summaryContent = contentData.summary || '';
           setSummary(summaryContent);
           setOriginalSummary(summaryContent);
 
-          // For original PDF view, we'd need to get the original file URL
-          // This would require backend support to serve the original PDF
-          // For now, we'll display a message
-          setOriginalPdfUrl(null); // Would be set to actual PDF URL when backend supports it
+          // For original view, show the raw text if available
+          setOriginalContent(contentData.raw_text || extracted);
 
           setIsModified(false);
-          logger.info('Loaded PDF document content', { documentId });
+          logger.info('Loaded Word document content', { documentId });
         } catch (err) {
-          logger.error('Failed to load PDF content', { error: err });
-          setError('Failed to load PDF content');
+          logger.error('Failed to load Word content', { error: err });
+          setError('Failed to load Word document content');
         } finally {
           setIsLoading(false);
         }
@@ -72,23 +70,23 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
     }, [document]);
 
     // Handle content changes
-    const handleTranscriptChange = useCallback((value: string) => {
-      setTranscript(value);
-      const hasChanges = value !== originalTranscript || summary !== originalSummary;
+    const handleExtractedTextChange = useCallback((value: string) => {
+      setExtractedText(value);
+      const hasChanges = value !== originalExtractedText || summary !== originalSummary;
       setIsModified(hasChanges);
       if (hasChanges) {
         onContentChange?.();
       }
-    }, [originalTranscript, originalSummary, summary, onContentChange]);
+    }, [originalExtractedText, originalSummary, summary, onContentChange]);
 
     const handleSummaryChange = useCallback((value: string) => {
       setSummary(value);
-      const hasChanges = transcript !== originalTranscript || value !== originalSummary;
+      const hasChanges = extractedText !== originalExtractedText || value !== originalSummary;
       setIsModified(hasChanges);
       if (hasChanges) {
         onContentChange?.();
       }
-    }, [originalTranscript, originalSummary, transcript, onContentChange]);
+    }, [originalExtractedText, originalSummary, extractedText, onContentChange]);
 
     // Save document with version history
     const handleSave = async () => {
@@ -103,9 +101,9 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
         // Create update request with the appropriate content based on what changed
         const updateRequest: any = {};
 
-        // Save transcript as formatted_content
-        if (transcript !== originalTranscript) {
-          updateRequest.content = transcript;
+        // Save extracted text as formatted_content
+        if (extractedText !== originalExtractedText) {
+          updateRequest.content = extractedText;
         }
 
         // Save summary
@@ -119,17 +117,17 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
         documentContentService.clearCache(documentId);
 
         // Update original values
-        setOriginalTranscript(transcript);
+        setOriginalExtractedText(extractedText);
         setOriginalSummary(summary);
         setIsModified(false);
         setSaveSuccess(true);
 
-        logger.info('PDF document saved successfully', { documentId });
+        logger.info('Word document saved successfully', { documentId });
 
         // Hide success message after 3 seconds
         setTimeout(() => setSaveSuccess(false), 3000);
       } catch (err) {
-        logger.error('Failed to save PDF document', { error: err });
+        logger.error('Failed to save Word document', { error: err });
         setError('Failed to save document. Please try again.');
       } finally {
         setIsSaving(false);
@@ -161,19 +159,19 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
     // Render loading state
     if (isLoading) {
       return (
-        <div className={styles.pdfViewer}>
+        <div className={styles.wordViewer}>
           <div className={styles.loadingContainer}>
             <Loader size={32} className={styles.spinner} />
-            <p>Loading PDF content...</p>
+            <p>Loading Word document content...</p>
           </div>
         </div>
       );
     }
 
     // Render error state
-    if (error && !transcript && !summary) {
+    if (error && !extractedText && !summary) {
       return (
-        <div className={styles.pdfViewer}>
+        <div className={styles.wordViewer}>
           <div className={styles.errorContainer}>
             <p className={styles.errorMessage}>{error}</p>
           </div>
@@ -182,25 +180,25 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
     }
 
     return (
-      <div className={styles.pdfViewer}>
+      <div className={styles.wordViewer}>
         <div className={styles.editorToolbar}>
           <div className={styles.viewModeButtons}>
             <button
               className={classNames(styles.modeButton, {
-                [styles.active]: viewMode === 'transcript',
+                [styles.active]: viewMode === 'extracted',
               })}
-              onClick={() => setViewMode('transcript')}
-              title="View/Edit Transcript"
+              onClick={() => setViewMode('extracted')}
+              title="View/Edit Extracted Text"
             >
               <FileType size={16} />
-              Transcript
+              Extracted
             </button>
             <button
               className={classNames(styles.modeButton, {
                 [styles.active]: viewMode === 'original',
               })}
               onClick={() => setViewMode('original')}
-              title="View Original PDF"
+              title="View Original Content"
             >
               <FileText size={16} />
               Original
@@ -228,13 +226,13 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
         </div>
 
         <div className={styles.editorContainer}>
-          {viewMode === 'transcript' && (
+          {viewMode === 'extracted' && (
             <div className={styles.editorPane}>
               <textarea
                 className={styles.editorTextarea}
-                value={transcript}
-                onChange={(e) => handleTranscriptChange(e.target.value)}
-                placeholder="PDF transcript (converted to markdown)..."
+                value={extractedText}
+                onChange={(e) => handleExtractedTextChange(e.target.value)}
+                placeholder="Document text extracted as markdown..."
                 spellCheck={false}
               />
             </div>
@@ -242,19 +240,17 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
 
           {viewMode === 'original' && (
             <div className={styles.previewPane}>
-              {originalPdfUrl ? (
-                <iframe
-                  src={originalPdfUrl}
-                  className={styles.pdfEmbed}
-                  title="Original PDF"
-                />
+              {originalContent ? (
+                <div className={styles.markdownPreview}>
+                  <pre className={styles.originalContent}>{originalContent}</pre>
+                </div>
               ) : (
                 <div className={styles.emptyState}>
                   <FileText size={48} />
-                  <h3>Original PDF View</h3>
-                  <p>The original PDF display is not yet available.</p>
+                  <h3>Original Content</h3>
+                  <p>No original content available.</p>
                   <p className={styles.hint}>
-                    Use the Transcript view to see the extracted text content.
+                    Use the Extracted view to see the processed text content.
                   </p>
                 </div>
               )}
@@ -284,4 +280,4 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
   }
 );
 
-PDFViewer.displayName = 'PDFViewer';
+WordViewer.displayName = 'WordViewer';

@@ -6,7 +6,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import type { ColDef, ValueSetterParams } from 'ag-grid-community';
 import type { DocumentMessage } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
-import styles from './Bench.module.css';
+import styles from './ExcelViewer.module.css';
 
 interface ExcelViewerProps {
   document: DocumentMessage;

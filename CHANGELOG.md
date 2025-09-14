@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Frontend UI Enhancements (2025-01-14 - Evening)
+- **Version History Feature**:
+  - Created VersionHistory component for displaying document version history
+  - Added Version History tab to sidebar with History icon
+  - Connected History button in Bench toolbar to trigger version history view
+  - Integrated with backend API for fetching document versions
+  - Displays version metadata, timestamps, users, and change details
+  - Added version restoration functionality
+
+- **Upload Queue System**:
+  - Implemented comprehensive upload queue with real-time status tracking
+  - Files now appear immediately in queue as "pending" before processing
+  - Each file shows individual progress: pending → uploading → processing → completed/error
+  - Queue persists across tab switches for better user experience
+  - Added queue statistics (active, completed, failed counts)
+  - Clear completed uploads functionality
+  - Fixed issue where files were processed immediately without showing in queue
+
+- **Word Document Support**:
+  - Created dedicated WordViewer component for .doc and .docx files
+  - Three-tab interface similar to PDF viewer:
+    - Extracted: Shows markdown-converted text (editable)
+    - Original: Displays raw document content
+    - Summary: View/edit document summary
+  - Integrated with LLM service for text extraction and summarization
+  - Full save and unsaved changes tracking
+
+- **CSS Modularization**:
+  - Created independent CSS modules for all Bench viewer components:
+    - PDFViewer.module.css
+    - WordViewer.module.css
+    - MarkdownEditor.module.css
+    - TextEditor.module.css
+    - ExcelViewer.module.css
+    - JSONViewer.module.css
+  - Updated all components to use their own CSS modules
+  - Better separation of concerns and maintainability
+  - Consistent styling across all viewer components
+
+- **Bug Fixes**:
+  - Fixed upload queue visibility issues
+  - Separated file queuing from processing for better UX
+  - Fixed function naming mismatches in upload processing
+  - Ensured DocumentMessage object consistency throughout workflows
+
 ### Frontend Test Suite Improvements (2025-01-14)
 - **Test Coverage Enhancement**:
   - Fixed 52 failing frontend tests (84% reduction in failures)

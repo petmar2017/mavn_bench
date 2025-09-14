@@ -3,7 +3,7 @@ import { ChevronRight, ChevronDown, Copy, Download, Loader } from 'lucide-react'
 import classNames from 'classnames';
 import type { DocumentMessage } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
-import styles from './Bench.module.css';
+import styles from './JSONViewer.module.css';
 
 interface JSONViewerProps {
   document: DocumentMessage;
