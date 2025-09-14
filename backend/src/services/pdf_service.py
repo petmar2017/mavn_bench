@@ -482,6 +482,24 @@ Output only the Markdown content for this page:"""
                 # Convert to markdown
                 markdown_content = await self.pdf_to_markdown(file_path)
 
+                # Detect language and generate summary if LLM service is available
+                language = "en"  # Default
+                summary = None
+                if self.llm_service:
+                    try:
+                        # Detect language
+                        lang_result = await self.llm_service.detect_language(markdown_content[:1000])
+                        language = lang_result[0] if lang_result[0] != "unknown" else "en"
+
+                        # Generate summary
+                        summary = await self.llm_service.generate_summary(
+                            markdown_content[:3000],  # Use first 3000 chars for summary
+                            max_length=100,
+                            style="concise"
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"Failed to detect language or generate summary: {str(e)}")
+
                 # Extract tables
                 tables = await self.extract_tables(file_path)
 
@@ -489,7 +507,8 @@ Output only the Markdown content for this page:"""
                 metadata = DocumentMetadata(
                     document_type=DocumentType.PDF,
                     name=metadata_dict.get("file_name", "Untitled PDF"),
-                    summary=f"PDF document with {metadata_dict.get('page_count', 0)} pages",
+                    summary=summary or f"PDF document with {metadata_dict.get('page_count', 0)} pages",
+                    language=language,
                     created_user=user_id,
                     updated_user=user_id,
                     file_size=metadata_dict.get("file_size", 0),
@@ -522,6 +541,81 @@ Output only the Markdown content for this page:"""
             except Exception as e:
                 self.logger.error(f"Failed to process PDF document: {str(e)}")
                 raise
+
+    async def validate_and_extract_pdf(
+        self,
+        file_path: str,
+        extracted_text: str
+    ) -> Dict[str, Any]:
+        """Validate PDF extraction quality and re-extract if needed using LLM
+
+        Args:
+            file_path: Path to the PDF file
+            extracted_text: Previously extracted text to validate
+
+        Returns:
+            Dict with validation result and improved extraction if needed
+        """
+        with self.traced_operation(
+            "validate_and_extract_pdf",
+            file_path=file_path
+        ):
+            try:
+                # Check if we have LLM service available
+                if not self.llm_service:
+                    self.logger.warning("No LLM service available for PDF validation")
+                    return {
+                        "quality_assessment": "unknown",
+                        "needs_reprocessing": False,
+                        "improved_extraction": extracted_text,
+                        "validation_notes": "LLM service not available"
+                    }
+
+                # Create validation prompt
+                validation_prompt = f"""You have been provided with a PDF document and its extracted text.
+
+Please evaluate the quality of the text extraction and perform the following tasks:
+
+1. Check if the extracted text is meaningful and complete (not just "---" or placeholder text)
+2. If the extraction is poor quality, extract the text properly from the PDF
+3. Convert the content to clean, well-formatted Markdown
+
+Current extracted text preview (first 500 chars):
+{extracted_text[:500] if extracted_text else "(empty)"}
+
+Please respond with:
+- Quality Assessment: (Good/Poor)
+- If Poor, provide the properly extracted and formatted Markdown content from the PDF
+- Ensure all text, tables, and structure are preserved
+
+Format the response as clean Markdown suitable for display."""
+
+                # Call LLM with PDF attachment using the internal method
+                response = await self.llm_service._call_llm_with_file(
+                    prompt=validation_prompt,
+                    file_path=file_path,
+                    max_tokens=4000  # Allow more tokens for full extraction
+                )
+
+                # Parse response to determine if we need to use the LLM's extraction
+                is_poor_quality = "poor" in response.lower()[:100] or "---" in extracted_text[:100]
+
+                return {
+                    "quality_assessment": "poor" if is_poor_quality else "good",
+                    "needs_reprocessing": is_poor_quality,
+                    "improved_extraction": response if is_poor_quality else extracted_text,
+                    "validation_notes": response[:200] if not is_poor_quality else None
+                }
+
+            except Exception as e:
+                self.logger.error(f"PDF validation failed: {str(e)}")
+                # Return original text if validation fails
+                return {
+                    "quality_assessment": "unknown",
+                    "needs_reprocessing": False,
+                    "improved_extraction": extracted_text,
+                    "validation_notes": f"Validation failed: {str(e)}"
+                }
 
     async def extract_images(self, file_path: str, output_dir: Optional[str] = None) -> List[str]:
         """Extract images from PDF file

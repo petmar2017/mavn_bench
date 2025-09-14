@@ -160,6 +160,74 @@ async def create_document(
             )
 
 
+@router.get("/trash")
+async def list_deleted_documents(
+    user: Dict = Depends(get_current_user),
+    pagination: PaginationParams = Depends(get_pagination),
+    service: DocumentService = Depends(get_document_service),
+    document_type: Optional[DocumentType] = None
+) -> Dict[str, Any]:
+    """List soft-deleted documents (trash)
+
+    Args:
+        user: Current user
+        pagination: Pagination parameters
+        service: Document service
+        document_type: Filter by document type
+
+    Returns:
+        List of deleted documents
+    """
+    with tracer.start_as_current_span("list_deleted_documents") as span:
+        span.set_attribute("user.id", user["user_id"])
+        span.set_attribute("pagination.limit", pagination.limit)
+        span.set_attribute("pagination.offset", pagination.offset)
+
+        # Get documents including deleted ones
+        documents = await service.list_documents(
+            user_id=user["user_id"],
+            document_type=document_type,
+            limit=pagination.limit + pagination.offset,
+            offset=0,
+            include_deleted=True  # Include deleted documents
+        )
+
+        # Filter to only show deleted documents
+        deleted_docs = [doc for doc in documents if getattr(doc, "deleted", False)]
+
+        # Convert to response format
+        doc_responses = []
+        for doc in deleted_docs[pagination.offset:pagination.offset + pagination.limit]:
+            doc_response = {
+                "metadata": {
+                    "document_id": doc.document_id,
+                    "name": doc.name,
+                    "document_type": doc.document_type,
+                    "version": doc.version,
+                    "size": doc.file_size if hasattr(doc, 'file_size') and doc.file_size else 0,
+                    "created_at": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
+                    "updated_at": doc.updated_at.isoformat() if hasattr(doc.updated_at, 'isoformat') else str(doc.updated_at),
+                    "deleted_at": doc.deleted_at.isoformat() if hasattr(doc, 'deleted_at') and doc.deleted_at and hasattr(doc.deleted_at, 'isoformat') else str(doc.deleted_at) if hasattr(doc, 'deleted_at') and doc.deleted_at else None,
+                    "deleted_by": doc.deleted_by if hasattr(doc, 'deleted_by') else None,
+                    "deleted": True,
+                    "user_id": doc.created_user,
+                    "tags": [],
+                    "processing_status": "completed"
+                },
+                "content": {
+                    "summary": doc.summary
+                }
+            }
+            doc_responses.append(doc_response)
+
+        return {
+            "documents": doc_responses,
+            "total": len(deleted_docs),
+            "limit": pagination.limit,
+            "offset": pagination.offset
+        }
+
+
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: str,
@@ -411,9 +479,14 @@ async def list_documents(
                     "size": doc.file_size if hasattr(doc, 'file_size') and doc.file_size else 0,  # Use actual file size from metadata
                     "created_at": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
                     "updated_at": doc.updated_at.isoformat() if hasattr(doc.updated_at, 'isoformat') else str(doc.updated_at),
+                    "deleted": getattr(doc, "deleted", False),
+                    "deleted_at": doc.deleted_at.isoformat() if hasattr(doc, 'deleted_at') and doc.deleted_at and hasattr(doc.deleted_at, 'isoformat') else str(doc.deleted_at) if hasattr(doc, 'deleted_at') and doc.deleted_at else None,
+                    "deleted_by": doc.deleted_by if hasattr(doc, 'deleted_by') else None,
                     "user_id": doc.created_user,
                     "tags": [],
-                    "processing_status": "completed"
+                    "processing_status": "completed",
+                    "summary": doc.summary,
+                    "language": getattr(doc, "language", "en")
                 },
                 "content": {
                     "summary": doc.summary
@@ -427,6 +500,8 @@ async def list_documents(
             "limit": pagination.limit,
             "offset": pagination.offset
         }
+
+
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -496,19 +571,54 @@ async def upload_document(
                 if doc_type == DocumentType.PDF:
                     # Convert PDF to markdown
                     markdown_content = await pdf_service.pdf_to_markdown(tmp_path)
-                    formatted_content = markdown_content
-                    raw_text = markdown_content
+
+                    # Validate and potentially re-extract with LLM if quality is poor
+                    validation_result = await pdf_service.validate_and_extract_pdf(
+                        tmp_path,
+                        markdown_content
+                    )
+
+                    # Use the improved extraction if validation found issues
+                    if validation_result.get("needs_reprocessing"):
+                        logger.info(f"PDF extraction was poor quality, using LLM-improved version")
+                        formatted_content = validation_result["improved_extraction"]
+                        raw_text = validation_result["improved_extraction"]
+                    else:
+                        formatted_content = markdown_content
+                        raw_text = markdown_content
                 else:
                     # For other types, read as text for now
                     async with aiofiles.open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
                         raw_text = await f.read()
                     formatted_content = raw_text
 
+                # Detect language and generate summary for all document types
+                language = "en"  # Default
+                summary = None
+                try:
+                    from ...services.service_factory import ServiceFactory, ServiceType
+                    llm_service = ServiceFactory.create(ServiceType.LLM)
+
+                    # Detect language
+                    lang_result = await llm_service.detect_language(raw_text[:1000])
+                    language = lang_result[0] if lang_result[0] != "unknown" else "en"
+
+                    # Generate summary
+                    summary = await llm_service.generate_summary(
+                        raw_text[:3000],  # Use first 3000 chars
+                        max_length=100,
+                        style="concise"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to detect language or generate summary: {str(e)}")
+
                 # Create document
                 metadata = DocumentMetadata(
                     document_id=str(uuid.uuid4()),
                     document_type=doc_type,
                     name=name or file.filename,
+                    summary=summary,
+                    language=language,
                     file_size=len(content),  # Set the actual file size
                     created_user=user["user_id"],
                     updated_user=user["user_id"]

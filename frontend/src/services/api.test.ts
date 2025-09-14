@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import axios from 'axios';
+import { mockDocument, mockDocuments, mockSearchResults } from '../test/mocks';
 
 // Mock localStorage before importing api
 const localStorageMock = {
@@ -13,31 +13,40 @@ Object.defineProperty(window, 'localStorage', {
   writable: true
 });
 
-// Mock axios
-vi.mock('axios');
+// Create mock API methods that will be set after vi.mock
+let mockApi: any;
 
-// Mock the api instance with interceptors
-const mockApi = {
-  get: vi.fn(),
-  post: vi.fn(),
-  put: vi.fn(),
-  delete: vi.fn(),
-  interceptors: {
-    request: {
-      use: vi.fn()
-    },
-    response: {
-      use: vi.fn()
+// Mock axios - this gets hoisted
+vi.mock('axios', () => {
+  // Create the mock inside the factory function
+  const axiosMock = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    interceptors: {
+      request: {
+        use: vi.fn()
+      },
+      response: {
+        use: vi.fn()
+      }
     }
-  }
-};
+  };
 
-// Override the create method to return our mock
-vi.mocked(axios).create = vi.fn(() => mockApi as any);
+  return {
+    default: {
+      create: () => axiosMock
+    }
+  };
+});
 
-// Now import api after mocks are set up
+// Now import everything
+import axios from 'axios';
 import { documentApi, searchApi, processApi, healthApi } from './api';
-import { mockDocument, mockDocuments, mockSearchResults } from '../test/mocks';
+
+// Get the mock instance after everything is imported
+mockApi = (axios.create as any)();
 
 describe('API Service', () => {
   beforeEach(() => {
@@ -45,7 +54,7 @@ describe('API Service', () => {
   });
 
   describe('documentApi', () => {
-    describe('uploadDocument', () => {
+    describe('createDocument', () => {
       it('should upload a document successfully', async () => {
         const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
         const formData = new FormData();
@@ -53,7 +62,7 @@ describe('API Service', () => {
 
         mockApi.post.mockResolvedValueOnce({ data: mockDocument });
 
-        const result = await documentApi.uploadDocument(file);
+        const result = await documentApi.createDocument(formData);
 
         expect(mockApi.post).toHaveBeenCalledWith('/api/documents/upload', formData, {
           headers: {
@@ -69,11 +78,15 @@ describe('API Service', () => {
 
         mockApi.post.mockRejectedValueOnce(error);
 
-        await expect(documentApi.uploadDocument(file)).rejects.toThrow('Upload failed');
+        const formData = new FormData();
+        formData.append('file', file);
+        await expect(documentApi.createDocument(formData)).rejects.toThrow('Upload failed');
       });
 
       it('should handle actual backend upload response format with id field', async () => {
         const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' });
+        const formData = new FormData();
+        formData.append('file', file);
 
         // Test the actual response format from backend
         const backendUploadResponse = {
@@ -99,7 +112,7 @@ describe('API Service', () => {
 
         mockApi.post.mockResolvedValueOnce({ data: backendUploadResponse });
 
-        const result = await documentApi.uploadDocument(file);
+        const result = await documentApi.createDocument(formData);
 
         expect(result).toEqual(backendUploadResponse);
         expect(result).toHaveProperty('id');  // Frontend expects this field
@@ -107,24 +120,21 @@ describe('API Service', () => {
       });
     });
 
-    describe('createDocument', () => {
-      it('should create a document successfully', async () => {
-        mockApi.post.mockResolvedValueOnce({ data: mockDocument });
-
-        const result = await documentApi.createDocument(mockDocument);
-
-        expect(mockApi.post).toHaveBeenCalledWith('/api/documents', mockDocument);
-        expect(result).toEqual(mockDocument);
-      });
-    });
 
     describe('listDocuments', () => {
       it('should list documents successfully', async () => {
-        mockApi.get.mockResolvedValueOnce({ data: mockDocuments });
+        mockApi.get.mockResolvedValueOnce({
+          data: {
+            documents: mockDocuments,
+            total: mockDocuments.length,
+            limit: 10,
+            offset: 0
+          }
+        });
 
         const result = await documentApi.listDocuments();
 
-        expect(mockApi.get).toHaveBeenCalledWith('/api/documents');
+        expect(mockApi.get).toHaveBeenCalledWith('/api/documents/', { params: undefined });
         expect(result).toEqual(mockDocuments);
       });
 
@@ -222,29 +232,112 @@ describe('API Service', () => {
     });
 
     describe('deleteDocument', () => {
-      it('should delete a document successfully', async () => {
+      it('should soft delete a document by default', async () => {
         const documentId = 'doc-123';
         mockApi.delete.mockResolvedValueOnce({ data: null });
 
         await documentApi.deleteDocument(documentId);
 
+        // Should call without any params (backend defaults to soft_delete=true)
         expect(mockApi.delete).toHaveBeenCalledWith(`/api/documents/${documentId}`);
       });
-    });
 
-    describe('getDocumentVersions', () => {
-      it('should get document versions', async () => {
+      it('should handle delete errors', async () => {
         const documentId = 'doc-123';
-        const versions = [mockDocument];
+        const error = new Error('Delete failed');
+        mockApi.delete.mockRejectedValueOnce(error);
 
-        mockApi.get.mockResolvedValueOnce({ data: versions });
-
-        const result = await documentApi.getDocumentVersions(documentId);
-
-        expect(mockApi.get).toHaveBeenCalledWith(`/api/documents/${documentId}/versions`);
-        expect(result).toEqual(versions);
+        await expect(documentApi.deleteDocument(documentId)).rejects.toThrow('Delete failed');
       });
     });
+
+    describe('listTrash', () => {
+      it('should list deleted documents successfully', async () => {
+        const trashDocuments = [
+          { ...mockDocument, metadata: { ...mockDocument.metadata, deleted: true, deleted_at: '2025-01-02T00:00:00' } }
+        ];
+        mockApi.get.mockResolvedValueOnce({ data: { documents: trashDocuments } });
+
+        const result = await documentApi.listTrash();
+
+        expect(mockApi.get).toHaveBeenCalledWith('/api/documents/trash');
+        expect(result).toEqual(trashDocuments);
+      });
+
+      it('should handle empty trash', async () => {
+        mockApi.get.mockResolvedValueOnce({ data: { documents: [] } });
+
+        const result = await documentApi.listTrash();
+
+        expect(result).toEqual([]);
+      });
+
+      it('should handle missing documents field', async () => {
+        mockApi.get.mockResolvedValueOnce({ data: {} });
+
+        const result = await documentApi.listTrash();
+
+        expect(result).toEqual([]);
+      });
+    });
+
+    describe('restoreDocument', () => {
+      it('should restore a soft-deleted document', async () => {
+        const documentId = 'doc-123';
+        const restoredDocument = {
+          ...mockDocument,
+          metadata: {
+            ...mockDocument.metadata,
+            deleted: false,
+            deleted_at: null,
+            deleted_by: null
+          }
+        };
+
+        mockApi.put.mockResolvedValueOnce({ data: restoredDocument });
+
+        const result = await documentApi.restoreDocument(documentId);
+
+        expect(mockApi.put).toHaveBeenCalledWith(`/api/documents/${documentId}`, {
+          metadata: {
+            deleted: false,
+            deleted_at: null,
+            deleted_by: null
+          }
+        });
+        expect(result).toEqual(restoredDocument);
+      });
+
+      it('should handle restore errors', async () => {
+        const documentId = 'doc-123';
+        const error = new Error('Restore failed');
+        mockApi.put.mockRejectedValueOnce(error);
+
+        await expect(documentApi.restoreDocument(documentId)).rejects.toThrow('Restore failed');
+      });
+    });
+
+    describe('permanentlyDelete', () => {
+      it('should permanently delete a document', async () => {
+        const documentId = 'doc-123';
+        mockApi.delete.mockResolvedValueOnce({ data: null });
+
+        await documentApi.permanentlyDelete(documentId);
+
+        expect(mockApi.delete).toHaveBeenCalledWith(`/api/documents/${documentId}`, {
+          params: { soft_delete: false }
+        });
+      });
+
+      it('should handle permanent delete errors', async () => {
+        const documentId = 'doc-123';
+        const error = new Error('Permanent delete failed');
+        mockApi.delete.mockRejectedValueOnce(error);
+
+        await expect(documentApi.permanentlyDelete(documentId)).rejects.toThrow('Permanent delete failed');
+      });
+    });
+
   });
 
   describe('searchApi', () => {
@@ -252,6 +345,7 @@ describe('API Service', () => {
 
     describe('vectorSearch', () => {
       it('should perform vector search successfully', async () => {
+        // vectorSearch expects the API to return the array directly
         mockApi.post.mockResolvedValueOnce({ data: mockSearchResults });
 
         const result = await searchApi.vectorSearch(searchQuery);
@@ -353,7 +447,7 @@ describe('API Service', () => {
 
         mockApi.post.mockResolvedValueOnce({ data: { markdown: '# Converted Content' } });
 
-        const result = await processApi.pdfToMarkdown(file);
+        const result = await processApi.pdfToMarkdown(formData);
 
         expect(mockApi.post).toHaveBeenCalledWith('/api/process/pdf-to-markdown', formData, {
           headers: {
@@ -371,9 +465,9 @@ describe('API Service', () => {
 
         mockApi.post.mockResolvedValueOnce({ data: transcription });
 
-        const result = await processApi.transcribe(mediaUrl);
+        const result = await processApi.transcribe(mediaUrl, 'youtube');
 
-        expect(mockApi.post).toHaveBeenCalledWith('/api/process/transcribe', { url: mediaUrl });
+        expect(mockApi.post).toHaveBeenCalledWith('/api/process/transcribe', { url: mediaUrl, source: 'youtube' });
         expect(result).toEqual(transcription);
       });
     });
@@ -385,7 +479,7 @@ describe('API Service', () => {
 
         mockApi.post.mockResolvedValueOnce({ data: scraped });
 
-        const result = await processApi.scrape(url);
+        const result = await processApi.scrapeWebpage(url);
 
         expect(mockApi.post).toHaveBeenCalledWith('/api/process/scrape', { url });
         expect(result).toEqual(scraped);
@@ -441,28 +535,5 @@ describe('API Service', () => {
       });
     });
 
-    describe('checkReadiness', () => {
-      it('should check readiness successfully', async () => {
-        const readinessStatus = { ready: true };
-        mockApi.get.mockResolvedValueOnce({ data: readinessStatus });
-
-        const result = await healthApi.checkReadiness();
-
-        expect(mockApi.get).toHaveBeenCalledWith('/api/ready');
-        expect(result).toEqual(readinessStatus);
-      });
-    });
-
-    describe('getMetrics', () => {
-      it('should get metrics successfully', async () => {
-        const metrics = { requests: 100, errors: 2, latency: 50 };
-        mockApi.get.mockResolvedValueOnce({ data: metrics });
-
-        const result = await healthApi.getMetrics();
-
-        expect(mockApi.get).toHaveBeenCalledWith('/api/metrics');
-        expect(result).toEqual(metrics);
-      });
-    });
   });
 });

@@ -2,6 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/globals.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
+// Initialize logger to register global error handlers
+import './services/logging'
+
+// Note: Global error handlers are registered in services/logging.ts
+// to ensure they're initialized before any errors occur
 
 console.log('main.tsx: Starting application...');
 const rootElement = document.getElementById('root');
@@ -13,7 +19,9 @@ if (rootElement) {
   console.log('main.tsx: Rendering App...');
   root.render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>
   );
   console.log('main.tsx: Render call completed');

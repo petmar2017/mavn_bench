@@ -1,75 +1,80 @@
- Phase 4 Plan: API Layer Implementation
+"test": "vitest",
+       12 +      "test:ui": "vitest --ui",
+       13 +      "test:jest": "jest",
+       14 +      "test:watch": "vitest --watch",
+       15 +      "test:coverage": "vitest --coverage",
+       16 +      "test:ci": "vitest --run --coverage"
+       17      },
+       18      "dependencies": {
+       19        "@chakra-ui/react": "^3.26.0",
 
-  Implementation Order:
 
-  1. FastAPI Application Setup (Day 1)
-
-  backend/src/api/
-  ├── main.py                 # FastAPI app with OpenTelemetry
-  ├── dependencies.py         # Dependency injection
-  └── middleware/
-      ├── auth.py            # API key validation
-      ├── telemetry.py       # Trace context propagation
-      └── error_handler.py   # Global error handling
-
-  2. Document Endpoints (Day 1-2)
-
-  # backend/src/api/routers/documents.py
-  POST   /api/documents              # Create
-  GET    /api/documents/{id}         # Read
-  PUT    /api/documents/{id}         # Update  
-  DELETE /api/documents/{id}         # Delete
-  GET    /api/documents              # List with pagination
-  POST   /api/documents/upload       # File upload
-  GET    /api/documents/{id}/versions # Version history
-
-  3. Processing Endpoints (Day 2)
-
-  # backend/src/api/routers/process.py
-  POST /api/process/pdf-to-markdown  # PDF conversion
-  POST /api/process/summarize        # AI summarization
-  POST /api/process/extract-entities # Entity extraction
-  POST /api/process/classify         # Document classification
-
-  4. WebSocket Support (Day 3)
-
-  # backend/src/api/websockets/events.py
-  - Real-time document processing updates
-  - Progress notifications
-  - Error streaming
-
-  5. Testing & Documentation (Day 3)
-
-  - Integration tests for all endpoints
-  - OpenAPI/Swagger documentation
-  - 80%+ test coverage
-
-  Key Features to Implement:
-
-  1. Request/Response Models
-    - Pydantic models for validation
-    - OpenAPI schema generation
-    - Error response standardization
-  2. Authentication & Authorization
-    - API key validation middleware
-    - Rate limiting per key
-    - Request logging with user context
-  3. OpenTelemetry Integration
-    - Automatic span creation for requests
-    - Trace context propagation (W3C standard)
-    - Metrics collection (latency, errors)
-  4. Error Handling
-    - Global exception handler
-    - Structured error responses
-    - Correlation IDs for debugging
-  5. Performance Optimizations
-    - Connection pooling
-    - Response caching
-    - Async request handling
-
-  Testing Strategy:
-
-  - Unit tests for each router
-  - Integration tests with real services
-  - End-to-end API workflow tests
-  - Load testing with locust
+       es/llm_service.py)
+  ⎿  Updated backend/src/services/llm_service.py with 65 additions                                                      
+       599                self.logger.error(f"LLM API call with file failed: {str(e)}")
+       600                raise
+       601    
+       602 +      async def validate_and_extract_pdf(
+       603 +          self,
+       604 +          file_path: str,
+       605 +          extracted_text: str
+       606 +      ) -> Dict[str, Any]:
+       607 +          """Validate PDF extraction quality and re-extract if needed
+       608 +  
+       609 +          Args:
+       610 +              file_path: Path to the PDF file
+       611 +              extracted_text: Previously extracted text to validate
+       612 +  
+       613 +          Returns:
+       614 +              Dict with validation result and improved extraction if needed
+       615 +          """
+       616 +          with self.traced_operation(
+       617 +              "validate_and_extract_pdf",
+       618 +              file_path=file_path
+       619 +          ):
+       620 +              try:
+       621 +                  # Create validation prompt
+       622 +                  validation_prompt = f"""You have been provided with a PDF document and its extracted text.
+       623 +  
+       624 +  Please evaluate the quality of the text extraction and perform the following tasks:
+       625 +  
+       626 +  1. Check if the extracted text is meaningful and complete (not just "---" or placeholder text)
+       627 +  2. If the extraction is poor quality, extract the text properly from the PDF
+       628 +  3. Convert the content to clean, well-formatted Markdown
+       629 +  
+       630 +  Current extracted text preview (first 500 chars):
+       631 +  {extracted_text[:500] if extracted_text else "(empty)"}
+       632 +  
+       633 +  Please respond with:
+       634 +  - Quality Assessment: (Good/Poor)
+       635 +  - If Poor, provide the properly extracted and formatted Markdown content from the PDF
+       636 +  - Ensure all text, tables, and structure are preserved
+       637 +  
+       638 +  Format the response as clean Markdown suitable for display."""
+       639 +  
+       640 +                  # Call LLM with PDF attachment
+       641 +                  response = await self._call_llm_with_file(
+       642 +                      prompt=validation_prompt,
+       643 +                      file_path=file_path,
+       644 +                      max_tokens=4000  # Allow more tokens for full extraction
+       645 +                  )
+       646 +  
+       647 +                  # Parse response to determine if we need to use the LLM's extraction
+       648 +                  is_poor_quality = "poor" in response.lower()[:100] or "---" in extracted_text[:100]
+       649 +  
+       650 +                  return {
+       651 +                      "quality_assessment": "poor" if is_poor_quality else "good",
+       652 +                      "needs_reprocessing": is_poor_quality,
+       653 +                      "improved_extraction": response if is_poor_quality else extracted_text,
+       654 +                      "validation_notes": response[:200] if not is_poor_quality else None
+       655 +                  }
+       656 +  
+       657 +              except Exception as e:
+       658 +                  self.logger.error(f"PDF validation failed: {str(e)}")
+       659 +                  # Return original text if validation fails
+       660 +                  return {
+       661 +                      "quality_assessment": "unknown",
+       662 +                      "needs_reprocessing": False,
+       663 +                      "improved_extraction": extracted_text,
+       664 +                      "validation_notes": f"Validation failed: {str(e)}"
+       665 +                  }

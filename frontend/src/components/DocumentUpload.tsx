@@ -117,6 +117,9 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({ onUploadSuccess 
             <div className={styles.successText}>
               Upload successful!
             </div>
+            <div className={styles.subtitle}>
+              Switching to Documents tab...
+            </div>
           </div>
         ) : (
           <div className={styles.dropzoneContent}>

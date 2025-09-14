@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Soft Delete and Trash Management (2025-01-14)
+- **Soft Delete Functionality**:
+  - Implemented soft delete for documents (marked as deleted, not removed from database)
+  - Documents now marked with `deleted=true` flag instead of being permanently removed
+  - Added `deleted_at` and `deleted_by` fields to track deletion metadata
+  - Soft delete is now the default behavior for document deletion
+- **Trash/Recycle Bin Feature**:
+  - Created dedicated TrashList component for viewing soft-deleted documents
+  - Added `/api/documents/trash` endpoint to retrieve soft-deleted documents
+  - Implemented restore functionality to recover soft-deleted documents
+  - Added permanent delete option with confirmation dialog
+  - Trash items sorted by deletion date (most recent first)
+  - Documents display deletion date and can be restored or permanently deleted
+- **Backend Improvements**:
+  - Fixed route ordering issue: moved `/trash` route before `/{document_id}` to prevent route shadowing
+  - Added comprehensive filtering to exclude soft-deleted documents from normal lists
+  - Implemented restore endpoint to unmark documents as deleted
+  - Added permanent delete option with `soft_delete=false` parameter
+- **Frontend Updates**:
+  - DocumentList now filters out soft-deleted documents automatically
+  - Added trash icon and navigation to trash view
+  - Soft delete happens immediately without confirmation dialog
+  - Permanent delete requires user confirmation
+  - Enhanced UI with restore and permanent delete buttons in trash view
+- **Comprehensive Test Coverage**:
+  - Created TrashList.test.tsx with 20 tests for all trash operations
+  - Created DocumentList.softdelete.test.tsx with 10 tests for soft delete behavior
+  - Updated api.test.ts with tests for all soft delete API methods
+  - All 63 soft delete related tests passing with 100% coverage
+  - Fixed axios mock initialization and method name issues in tests
+
 ### PDF Viewer Implementation and Bug Fixes (2025-09-14 - Evening)
 - **PDF Viewer Component**:
   - Created dedicated PDFViewer component for displaying PDF content

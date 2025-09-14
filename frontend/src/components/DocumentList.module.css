@@ -2,6 +2,10 @@
 
 .container {
   width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .loading {
@@ -66,10 +70,202 @@
   color: #718096;
 }
 
+.scrollWrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem;
+}
+
+.scrollWrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollWrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.scrollWrapper::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.scrollWrapper::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
+}
+
+.tile {
+  background: var(--color-surface, white);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 0.5rem;
+}
+
+.tile:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.tileContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tileHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.typeIcon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #718096);
+}
+
+.tileName {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text, #2d3748);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deleteBtn {
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted, #a0aec0);
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deleteBtn:hover {
+  background: var(--color-danger-bg, #fff5f5);
+  color: var(--color-danger, #e53e3e);
+}
+
+.summary {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #718096);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tileFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #a0aec0);
+}
+
+.typeBadge {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--color-badge-bg, #edf2f7);
+  color: var(--color-badge-text, #4a5568);
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+}
+
+.typeBadge.pdf {
+  background: var(--color-pdf-bg, #fef2f2);
+  color: var(--color-pdf-text, #991b1b);
+}
+
+.typeBadge.word {
+  background: var(--color-word-bg, #eff6ff);
+  color: var(--color-word-text, #1e40af);
+}
+
+.typeBadge.excel {
+  background: var(--color-excel-bg, #f0fdf4);
+  color: var(--color-excel-text, #166534);
+}
+
+.typeBadge.json {
+  background: var(--color-json-bg, #fefce8);
+  color: var(--color-json-text, #854d0e);
+}
+
+.typeBadge.csv {
+  background: var(--color-csv-bg, #f5f3ff);
+  color: var(--color-csv-text, #6b21a8);
+}
+
+.typeBadge.markdown {
+  background: var(--color-markdown-bg, #fafafa);
+  color: var(--color-markdown-text, #404040);
+}
+
+.language {
+  font-size: 1rem;
+}
+
+.size {
+  color: var(--color-text-muted, #a0aec0);
+}
+
+.date {
+  color: var(--color-text-muted, #a0aec0);
+  margin-left: auto;
+}
+
+/* Dark mode support */
+:global(.dark) .tile {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+:global(.dark) .tileName {
+  color: #e2e8f0;
+}
+
+:global(.dark) .summary {
+  color: #a0aec0;
+}
+
+:global(.dark) .typeIcon {
+  color: #a0aec0;
+}
+
+:global(.dark) .deleteBtn {
+  color: #718096;
+}
+
+:global(.dark) .deleteBtn:hover {
+  background: rgba(245, 101, 101, 0.1);
+  color: #fc8181;
+}
+
+:global(.dark) .typeBadge {
+  opacity: 0.9;
+}
+
+:global(.dark) .size,
+:global(.dark) .date {
+  color: #718096;
 }
 
 .card {
@@ -84,6 +280,7 @@
 .card:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   transform: translateY(-2px);
+  display: none; /* Legacy - using tile now */
 }
 
 .cardHeader {
@@ -191,4 +388,51 @@
 .actionButton.danger:hover {
   background-color: #fff5f5;
   border-color: #feb2b2;
+}
+
+/* Trash specific styles */
+.deletedTile {
+  opacity: 0.8;
+  background: var(--color-surface, white);
+  border: 1px solid var(--color-danger, #e53e3e);
+}
+
+.trashActions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.restoreBtn {
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  color: var(--color-success, #10b981);
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.restoreBtn:hover {
+  background: var(--color-success-bg, #f0fff4);
+  color: var(--color-success, #10b981);
+}
+
+/* Dark mode support for trash */
+:global(.dark) .deletedTile {
+  opacity: 0.7;
+  background: #2d3748;
+  border-color: #fc8181;
+}
+
+:global(.dark) .restoreBtn {
+  color: #68d391;
+}
+
+:global(.dark) .restoreBtn:hover {
+  background: rgba(104, 211, 145, 0.1);
+  color: #68d391;
 }

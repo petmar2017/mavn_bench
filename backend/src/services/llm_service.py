@@ -391,6 +391,68 @@ Classification:"""
 
         return (category, confidence)
 
+    async def detect_language(
+        self,
+        text: str
+    ) -> Tuple[str, float]:
+        """Detect the language of a text document
+
+        Args:
+            text: Text to analyze for language detection
+
+        Returns:
+            Tuple of (language_code, confidence)
+        """
+        with self.traced_operation(
+            "detect_language",
+            text_length=len(text)
+        ):
+            try:
+                if not text:
+                    return ("unknown", 0.0)
+
+                # Prepare language detection prompt
+                prompt = f"""Detect the language of the following text.
+Return only the ISO 639-1 language code (e.g., 'en' for English, 'es' for Spanish, 'fr' for French, 'de' for German, 'zh' for Chinese, 'ja' for Japanese, etc.)
+and a confidence score from 0.0 to 1.0.
+
+Format your response exactly as:
+Language: [code]
+Confidence: [score]
+
+Text to analyze (first 500 characters):
+{text[:500]}
+
+Response:"""
+
+                # Call LLM API with low temperature for consistency
+                response = await self._call_llm(prompt, temperature=0.1, max_tokens=50)
+
+                # Parse response
+                language = "en"  # Default to English
+                confidence = 0.5
+
+                lines = response.strip().split('\n')
+                for line in lines:
+                    if "Language:" in line or "language:" in line:
+                        lang_text = line.split(':')[1].strip().lower()
+                        # Extract just the language code
+                        language = lang_text[:2]
+                    elif "Confidence:" in line or "confidence:" in line:
+                        try:
+                            conf_text = line.split(':')[1].strip()
+                            confidence = float(conf_text.replace('%', '').strip()) / 100 if '%' in conf_text else float(conf_text)
+                            confidence = min(1.0, max(0.0, confidence))
+                        except ValueError:
+                            confidence = 0.8
+
+                self.logger.info(f"Detected language: {language} with confidence {confidence}")
+                return (language, confidence)
+
+            except Exception as e:
+                self.logger.error(f"Failed to detect language: {str(e)}")
+                return ("unknown", 0.0)
+
     async def answer_question(
         self,
         context: str,
@@ -510,6 +572,95 @@ Answer:"""
         except Exception as e:
             self.logger.error(f"LLM API call failed: {str(e)}")
             raise
+
+    async def _call_llm_with_file(
+        self,
+        prompt: str,
+        file_path: Optional[str] = None,
+        file_content: Optional[bytes] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None
+    ) -> str:
+        """Call the LLM API with file attachment support
+
+        Args:
+            prompt: Text prompt to send to LLM
+            file_path: Path to file to attach (for reading)
+            file_content: Raw file content (alternative to file_path)
+            max_tokens: Maximum tokens in response
+            temperature: Temperature for generation
+
+        Returns:
+            LLM response
+        """
+        import base64
+
+        max_tokens = max_tokens or self.max_tokens
+        temperature = temperature or self.temperature
+
+        try:
+            # Read file if path provided
+            if file_path and not file_content:
+                with open(file_path, 'rb') as f:
+                    file_content = f.read()
+
+            if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
+                # Claude supports PDF attachments directly
+                messages = []
+
+                if file_content:
+                    # Convert PDF to base64 for Claude
+                    file_base64 = base64.b64encode(file_content).decode('utf-8')
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "document",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "application/pdf",
+                                    "data": file_base64
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    })
+                else:
+                    messages.append({"role": "user", "content": prompt})
+
+                response = await self.anthropic_client.messages.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    messages=messages
+                )
+                return response.content[0].text
+
+            elif self.provider == LLMProvider.OPENAI and self.openai_client:
+                # OpenAI doesn't support PDFs directly, so we'll need to extract text first
+                if file_content:
+                    # Note: For OpenAI, caller should extract text from PDF first
+                    self.logger.warning("OpenAI doesn't support direct PDF attachments. Extract text first.")
+
+                response = await self.openai_client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                return response.choices[0].message.content
+
+            else:
+                # Fallback for local/mock mode
+                return f"Processed document with prompt: {prompt[:100]}..."
+
+        except Exception as e:
+            self.logger.error(f"LLM API call with file failed: {str(e)}")
+            raise
+
 
     async def generate_embeddings(
         self,

@@ -68,6 +68,7 @@ class DocumentMetadata(BaseModel):
     name: str
     title: Optional[str] = None  # Alias for name
     summary: Optional[str] = None
+    language: Optional[str] = Field(default="en", description="ISO 639-1 language code")
 
     # Access control
     access_permission: AccessPermission = AccessPermission.READ
@@ -95,6 +96,11 @@ class DocumentMetadata(BaseModel):
     tags: List[str] = Field(default_factory=list)
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
+
+    # Soft delete fields
+    deleted: bool = Field(default=False, description="Whether the document is soft deleted")
+    deleted_at: Optional[datetime] = Field(default=None, description="When the document was deleted")
+    deleted_by: Optional[str] = Field(default=None, description="User who deleted the document")
 
     def model_post_init(self, __context):
         """Handle field aliases after initialization"""

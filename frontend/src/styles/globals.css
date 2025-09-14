@@ -1,3 +1,80 @@
+/* CSS Variables for theming */
+:root {
+  --color-primary: #3b82f6;
+  --color-primary-dark: #2563eb;
+  --color-secondary: #8b5cf6;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  --color-background: #ffffff;
+  --color-background-secondary: #f9fafb;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-hover: #f3f4f6;
+
+  /* Component specific colors */
+  --color-surface: #ffffff;
+  --color-danger: #ef4444;
+  --color-danger-bg: #fff5f5;
+
+  /* Badge colors */
+  --color-badge-bg: #edf2f7;
+  --color-badge-text: #4a5568;
+
+  /* Document type colors */
+  --color-pdf-bg: #fef2f2;
+  --color-pdf-text: #991b1b;
+  --color-word-bg: #eff6ff;
+  --color-word-text: #1e40af;
+  --color-excel-bg: #f0fdf4;
+  --color-excel-text: #166534;
+  --color-json-bg: #fefce8;
+  --color-json-text: #854d0e;
+  --color-csv-bg: #f5f3ff;
+  --color-csv-text: #6b21a8;
+  --color-markdown-bg: #fafafa;
+  --color-markdown-text: #404040;
+}
+
+/* Dark mode variables */
+body.dark,
+.dark {
+  --color-background: #1f2937;
+  --color-background-secondary: #111827;
+  --color-text: #f9fafb;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: #6b7280;
+  --color-border: #374151;
+  --color-hover: #374151;
+
+  /* Component specific colors */
+  --color-surface: #2d3748;
+  --color-danger: #f87171;
+  --color-danger-bg: rgba(248, 113, 113, 0.1);
+
+  /* Badge colors */
+  --color-badge-bg: #374151;
+  --color-badge-text: #d1d5db;
+
+  /* Document type colors - slightly adjusted for dark mode */
+  --color-pdf-bg: rgba(254, 242, 242, 0.1);
+  --color-pdf-text: #fca5a5;
+  --color-word-bg: rgba(239, 246, 255, 0.1);
+  --color-word-text: #93bbfc;
+  --color-excel-bg: rgba(240, 253, 244, 0.1);
+  --color-excel-text: #86efac;
+  --color-json-bg: rgba(254, 252, 232, 0.1);
+  --color-json-text: #fde047;
+  --color-csv-bg: rgba(245, 243, 255, 0.1);
+  --color-csv-text: #c084fc;
+  --color-markdown-bg: rgba(250, 250, 250, 0.1);
+  --color-markdown-text: #e5e7eb;
+}
+
 /* CSS Reset and Base Styles */
 
 /* Box sizing rules */
@@ -22,8 +99,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
-  color: #333;
-  background-color: #f7fafc;
+  color: var(--color-text);
+  background-color: var(--color-background);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Remove list styles on ul, ol elements */

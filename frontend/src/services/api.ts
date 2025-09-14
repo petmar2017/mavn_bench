@@ -27,10 +27,15 @@ export interface DocumentMetadata {
   size: number;
   created_at: string;
   updated_at: string;
+  deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   user_id?: string;
   tags?: string[];
   source_url?: string;
   processing_status?: string;
+  summary?: string;
+  language?: string;
 }
 
 export interface DocumentContent {
@@ -93,9 +98,33 @@ export const documentApi = {
     return response.data;
   },
 
-  async deleteDocument(documentId: string, hardDelete: boolean = true) {
+  async deleteDocument(documentId: string) {
+    // Always use soft delete (backend defaults to soft_delete=true)
+    const response = await api.delete(`/api/documents/${documentId}`);
+    return response.data;
+  },
+
+  async listTrash() {
+    const response = await api.get<{ documents: DocumentMessage[] }>('/api/documents/trash');
+    return response.data.documents || [];
+  },
+
+  async restoreDocument(documentId: string) {
+    // Restore a soft-deleted document by updating its deleted flag
+    const response = await api.put(`/api/documents/${documentId}`, {
+      metadata: {
+        deleted: false,
+        deleted_at: null,
+        deleted_by: null
+      }
+    });
+    return response.data;
+  },
+
+  async permanentlyDelete(documentId: string) {
+    // Permanently delete a document (hard delete)
     const response = await api.delete(`/api/documents/${documentId}`, {
-      params: { soft_delete: !hardDelete }
+      params: { soft_delete: false }
     });
     return response.data;
   },

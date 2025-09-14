@@ -1,20 +1,5 @@
-/* CSS Variables */
-:root {
-  --color-primary: #3b82f6;
-  --color-primary-dark: #2563eb;
-  --color-secondary: #8b5cf6;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
-  --color-background: #ffffff;
-  --color-background-secondary: #f9fafb;
-  --color-text: #111827;
-  --color-text-secondary: #6b7280;
-  --color-border: #e5e7eb;
-  --color-hover: #f3f4f6;
-
+/* App-specific shadows (CSS variables are now in globals.css) */
+.app {
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
@@ -258,6 +243,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: 100%;
 }
 
 .panelHeader {
@@ -296,33 +282,24 @@
   gap: 0.5rem;
 }
 
-/* Dark mode support */
-.app.dark {
-  --color-background: #1f2937;
-  --color-background-secondary: #111827;
-  --color-text: #f9fafb;
-  --color-text-secondary: #9ca3af;
-  --color-border: #374151;
-  --color-hover: #374151;
-}
-
-.app.dark .card {
+/* Dark mode specific adjustments (main variables in globals.css) */
+.dark .card {
   background-color: #2d3748;
   color: #e2e8f0;
 }
 
-.app.dark .tabButton {
+.dark .tabButton {
   color: #a0aec0;
 }
 
-.app.dark .tabButton:hover {
+.dark .tabButton:hover {
   color: #e2e8f0;
 }
 
-.app.dark .separator {
+.dark .separator {
   background-color: #4a5568;
 }
 
-.app.dark .sectionDescription {
+.dark .sectionDescription {
   color: #a0aec0;
 }

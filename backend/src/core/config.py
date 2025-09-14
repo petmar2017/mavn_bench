@@ -37,6 +37,10 @@ class LLMConfig(BaseSettings):
     claude_max_tokens: int = Field(default=4000, env="LLM_CLAUDE_MAX_TOKENS")
     claude_temperature: float = Field(default=0.3, env="LLM_CLAUDE_TEMPERATURE")
 
+    # Fast model for quick operations (summaries, language detection)
+    fast_model: str = Field(default="claude-3-5-haiku-20241022", env="LLM_FAST_MODEL")
+    fast_max_tokens: int = Field(default=500, env="LLM_FAST_MAX_TOKENS")
+
     # OpenAI settings
     openai_model: str = Field(default="gpt-4o", env="LLM_OPENAI_MODEL")
     openai_max_tokens: int = Field(default=2000, env="LLM_OPENAI_MAX_TOKENS")

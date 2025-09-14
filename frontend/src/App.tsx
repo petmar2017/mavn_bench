@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, FileText, Upload, FolderOpen, Search } from 'lucide-react';
+import { Moon, Sun, FileText, Upload, FolderOpen, Search, Trash2 } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import classNames from 'classnames';
 import styles from './App.module.css';
 import { DocumentUpload } from './components/DocumentUpload';
 import { DocumentList } from './components/DocumentList';
 import { SearchInterface } from './components/SearchInterface';
+import { TrashList } from './components/TrashList';
 import { Bench } from './components/Bench';
 import { wsService } from './services/websocket';
 import { logger } from './services/logging';
@@ -29,7 +30,16 @@ function AppContent() {
   const [toasts, setToasts] = useState<Array<{ id: string; title: string; description: string; type: string }>>([]);
 
   const toggleColorMode = () => {
-    setColorMode(prev => prev === 'light' ? 'dark' : 'light');
+    setColorMode(prev => {
+      const newMode = prev === 'light' ? 'dark' : 'light';
+      // Apply dark class to body for global CSS variables
+      if (newMode === 'dark') {
+        document.body.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+      }
+      return newMode;
+    });
   };
 
   const showToast = (notification: { title?: string; message: string; type?: string }) => {
@@ -44,6 +54,15 @@ function AppContent() {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
   };
+
+  useEffect(() => {
+    // Initialize dark mode class on body
+    if (colorMode === 'dark') {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+  }, [colorMode]);
 
   useEffect(() => {
     // Connect to WebSocket
@@ -68,6 +87,10 @@ function AppContent() {
         type: 'success'
       });
       setRefreshDocuments(prev => prev + 1);
+      // Auto-switch to Documents tab after successful upload
+      setActiveTab('documents');
+      // Auto-select the newly uploaded document
+      setSelectedDocument(document);
     } else {
       logger.error('Invalid document received on upload success', { document });
       showToast({
@@ -159,6 +182,16 @@ function AppContent() {
               <Search size={20} />
               <span>Search</span>
             </button>
+            <button
+              className={classNames(styles.sidebarTab, {
+                [styles.active]: activeTab === 'trash'
+              })}
+              onClick={() => setActiveTab('trash')}
+              title="Trash"
+            >
+              <Trash2 size={20} />
+              <span>Trash</span>
+            </button>
           </div>
 
           <div className={styles.sidebarContent}>
@@ -192,6 +225,15 @@ function AppContent() {
                   <p>Search across all your documents</p>
                 </div>
                 <SearchInterface onResultSelect={handleSearchResultSelect} />
+              </div>
+            )}
+            {activeTab === 'trash' && (
+              <div className={styles.sidebarPanel}>
+                <div className={styles.panelHeader}>
+                  <h2>Trash</h2>
+                  <p>Recently deleted documents</p>
+                </div>
+                <TrashList refresh={refreshDocuments} />
               </div>
             )}
           </div>
