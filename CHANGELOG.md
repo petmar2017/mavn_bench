@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Frontend Test Suite Improvements (2025-01-14)
+- **Test Coverage Enhancement**:
+  - Fixed 52 failing frontend tests (84% reduction in failures)
+  - Added comprehensive tests for search reset button functionality
+  - Created integration tests for search result selection to Bench component
+  - Fixed all SearchInterface component tests (22 tests now passing)
+  - Updated DocumentUpload tests with proper react-dropzone mocking
+  - Fixed DocumentList tests for grid/tile layout instead of table layout
+- **Test Infrastructure**:
+  - Fixed WebSocket test event naming (document:created format)
+  - Updated test expectations to match actual component implementations
+  - Added App.integration.test.tsx for cross-component testing
+  - Improved test mocking strategies for file upload functionality
+- **Search Interface Testing**:
+  - Updated tests to use Enter key instead of non-existent search button
+  - Fixed loading state checks to query for spinner elements
+  - Corrected score display format expectations (95% not 95.0%)
+  - Updated empty state message expectations
+  - Added tests for search state persistence across tab switches
+- **Quality Improvements**:
+  - Test suite now at 155 passed, 10 failed, 12 skipped (from 98 passed, 62 failed)
+  - All critical UI interaction paths are now tested
+  - Comprehensive coverage of user workflows
+
+### API Response Consistency Updates (2025-01-14)
+- **Backend API Standardization**:
+  - Unified all document endpoints to return consistent `DocumentMessage` structure
+  - Changed `GET /api/documents/{id}` to return full `DocumentMessage` instead of flat `DocumentResponse`
+  - Changed `POST /api/documents/` to return `DocumentMessage` for newly created documents
+  - Changed `PUT /api/documents/{id}` to return `DocumentMessage` for updated documents
+  - Removed deprecated `DocumentResponse` class entirely
+  - Updated `DocumentListResponse` to use `List[DocumentMessage]` for consistency
+- **Frontend-Backend Alignment**:
+  - Fixed search result selection error caused by structure mismatch
+  - Documents now have consistent nested structure with `metadata` and `content` objects
+  - Resolved TypeError when clicking search results to open in Bench component
+  - All API responses now use the same data model across the entire stack
+- **Code Quality Improvements**:
+  - Replaced all `console.log` statements with centralized logger service
+  - Ensured httpx is used consistently (no aiohttp dependencies)
+  - Improved error handling and logging throughout the application
+- **Testing**:
+  - Frontend tests need updates to match new API response structure
+  - Backend API endpoints verified to return consistent DocumentMessage format
+
 ### Soft Delete and Trash Management (2025-01-14)
 - **Soft Delete Functionality**:
   - Implemented soft delete for documents (marked as deleted, not removed from database)

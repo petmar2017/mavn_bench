@@ -57,34 +57,21 @@ class UpdateDocumentRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class DocumentResponse(BaseModel):
-    """Response model for document operations"""
-    document_id: str
-    name: str
-    document_type: DocumentType
-    summary: Optional[str]
-    version: int
-    created_at: datetime
-    updated_at: datetime
-    created_user: str
-    updated_user: str
-
-
 class DocumentListResponse(BaseModel):
     """Response model for document list"""
-    documents: List[DocumentResponse]
+    documents: List[DocumentMessage]
     total: int
     limit: int
     offset: int
 
 
-@router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=DocumentMessage, status_code=status.HTTP_201_CREATED)
 async def create_document(
     request: CreateDocumentRequest,
     user: Dict = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service),
     trace_context: Dict = Depends(verify_trace_context)
-) -> DocumentResponse:
+) -> DocumentMessage:
     """Create a new document
 
     Args:
@@ -133,17 +120,7 @@ async def create_document(
 
             logger.info(f"Document created: {created.metadata.document_id}")
 
-            return DocumentResponse(
-                document_id=created.metadata.document_id,
-                name=created.metadata.name,
-                document_type=created.metadata.document_type,
-                summary=created.metadata.summary,
-                version=created.metadata.version,
-                created_at=created.metadata.created_at,
-                updated_at=created.metadata.updated_at,
-                created_user=created.metadata.created_user,
-                updated_user=created.metadata.updated_user
-            )
+            return created
 
         except ValueError as e:
             logger.warning(f"Document creation failed: {str(e)}")
@@ -228,12 +205,12 @@ async def list_deleted_documents(
         }
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)
+@router.get("/{document_id}", response_model=DocumentMessage)
 async def get_document(
     document_id: str,
     user: Dict = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service)
-) -> DocumentResponse:
+) -> DocumentMessage:
     """Get a document by ID
 
     Args:
@@ -259,17 +236,7 @@ async def get_document(
                 detail=f"Document {document_id} not found"
             )
 
-        return DocumentResponse(
-            document_id=document.metadata.document_id,
-            name=document.metadata.name,
-            document_type=document.metadata.document_type,
-            summary=document.metadata.summary,
-            version=document.metadata.version,
-            created_at=document.metadata.created_at,
-            updated_at=document.metadata.updated_at,
-            created_user=document.metadata.created_user,
-            updated_user=document.metadata.updated_user
-        )
+        return document
 
 
 @router.get("/{document_id}/content")
@@ -317,13 +284,13 @@ async def get_document_content(
         return content_data
 
 
-@router.put("/{document_id}", response_model=DocumentResponse)
+@router.put("/{document_id}", response_model=DocumentMessage)
 async def update_document(
     document_id: str,
     request: UpdateDocumentRequest,
     user: Dict = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service)
-) -> DocumentResponse:
+) -> DocumentMessage:
     """Update a document
 
     Args:
@@ -373,17 +340,7 @@ async def update_document(
                 detail=f"Document {document_id} not found"
             )
 
-        return DocumentResponse(
-            document_id=updated.metadata.document_id,
-            name=updated.metadata.name,
-            document_type=updated.metadata.document_type,
-            summary=updated.metadata.summary,
-            version=updated.metadata.version,
-            created_at=updated.metadata.created_at,
-            updated_at=updated.metadata.updated_at,
-            created_user=updated.metadata.created_user,
-            updated_user=updated.metadata.updated_user
-        )
+        return updated
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, FileText, HardDrive } from 'lucide-react';
+import { Search, FileText, HardDrive, X } from 'lucide-react';
 import classNames from 'classnames';
 import { searchApi } from '../services/api';
 import type { SearchResult } from '../services/api';
@@ -8,24 +8,43 @@ import styles from './SearchInterface.module.css';
 
 type SearchType = 'vector' | 'fulltext' | 'graph' | 'hybrid';
 
-interface SearchInterfaceProps {
-  onResultSelect?: (result: SearchResult) => void;
+interface SearchState {
+  query: string;
+  searchType: SearchType;
+  results: SearchResult[];
+  hasSearched: boolean;
+  error: string | null;
 }
 
-export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect }) => {
-  const [query, setQuery] = useState('');
-  const [searchType, setSearchType] = useState<SearchType>('vector');
+interface SearchInterfaceProps {
+  onResultSelect?: (result: SearchResult) => void;
+  searchState?: SearchState;
+  onSearchStateChange?: (state: SearchState) => void;
+}
+
+export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect, searchState, onSearchStateChange }) => {
+  // Use passed state if available, otherwise use local state
+  const [localState, setLocalState] = useState<SearchState>({
+    query: '',
+    searchType: 'vector',
+    results: [],
+    hasSearched: false,
+    error: null
+  });
+
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+
+  // Use passed state or local state
+  const currentState = searchState || localState;
+  const setState = onSearchStateChange || setLocalState;
+
+  const { query, searchType, results, hasSearched, error } = currentState;
 
   const handleSearch = async () => {
     if (!query.trim()) return;
 
     setIsSearching(true);
-    setError(null);
-    setHasSearched(true);
+    setState({ ...currentState, error: null, hasSearched: true });
 
     try {
       let searchResults: SearchResult[] = [];
@@ -54,14 +73,18 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
           'document_id' in result &&
           'metadata' in result
         );
-        setResults(validResults);
+        setState({ ...currentState, results: validResults, error: null, hasSearched: true });
       } else {
         console.error('Invalid search results format:', searchResults);
-        setResults([]);
+        setState({ ...currentState, results: [], error: null, hasSearched: true });
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Search failed. Please try again.');
-      setResults([]);
+      setState({
+        ...currentState,
+        error: err.response?.data?.detail || 'Search failed. Please try again.',
+        results: [],
+        hasSearched: true
+      });
     } finally {
       setIsSearching(false);
     }
@@ -71,6 +94,16 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
     if (e.key === 'Enter') {
       handleSearch();
     }
+  };
+
+  const handleReset = () => {
+    setState({
+      query: '',
+      searchType: currentState.searchType,
+      results: [],
+      error: null,
+      hasSearched: false
+    });
   };
 
   const highlightQuery = (text: string) => {
@@ -120,19 +153,22 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
         <input
           type="text"
           className={styles.searchInput}
-          placeholder="Search your documents..."
+          placeholder="Search your documents... (Press Enter to search)"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => setState({ ...currentState, query: e.target.value })}
           onKeyPress={handleKeyPress}
+          disabled={isSearching}
         />
-        <button
-          className={styles.searchButton}
-          onClick={handleSearch}
-          disabled={isSearching || !query.trim()}
-        >
-          <Search size={18} />
-          Search
-        </button>
+        {(query || hasSearched) && (
+          <button
+            className={styles.resetButton}
+            onClick={handleReset}
+            title="Clear search"
+            aria-label="Clear search"
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Search Type Selector */}
@@ -141,7 +177,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
           className={classNames(styles.searchTypeButton, {
             [styles.active]: searchType === 'vector',
           })}
-          onClick={() => setSearchType('vector')}
+          onClick={() => setState({ ...currentState, searchType: 'vector' })}
         >
           Vector
         </button>
@@ -149,7 +185,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
           className={classNames(styles.searchTypeButton, {
             [styles.active]: searchType === 'fulltext',
           })}
-          onClick={() => setSearchType('fulltext')}
+          onClick={() => setState({ ...currentState, searchType: 'fulltext' })}
         >
           Full Text
         </button>
@@ -157,7 +193,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
           className={classNames(styles.searchTypeButton, {
             [styles.active]: searchType === 'graph',
           })}
-          onClick={() => setSearchType('graph')}
+          onClick={() => setState({ ...currentState, searchType: 'graph' })}
         >
           Graph
         </button>
@@ -165,7 +201,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
           className={classNames(styles.searchTypeButton, {
             [styles.active]: searchType === 'hybrid',
           })}
-          onClick={() => setSearchType('hybrid')}
+          onClick={() => setState({ ...currentState, searchType: 'hybrid' })}
         >
           Hybrid
         </button>

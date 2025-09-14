@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '../test/utils';
+import { render, screen, fireEvent, waitFor, act } from '../test/utils';
 import userEvent from '@testing-library/user-event';
 import { DocumentList } from './DocumentList';
 import { documentApi } from '../services/api';
@@ -32,16 +32,16 @@ describe('DocumentList', () => {
       () => new Promise(() => {}) // Never resolves to keep loading state
     );
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
-    // Should show skeletons while loading
-    expect(screen.getByTestId('skeleton')).toBeInTheDocument();
+    // Should show spinner while loading
+    expect(container.querySelector('._spinner_b0a222')).toBeInTheDocument();
   });
 
-  it('should render documents in a table', async () => {
+  it('should render documents in a grid', async () => {
     vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
@@ -49,12 +49,11 @@ describe('DocumentList', () => {
       expect(screen.getByText('presentation.pptx')).toBeInTheDocument();
     });
 
-    // Check table headers
-    expect(screen.getByText('Name')).toBeInTheDocument();
-    expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getByText('Size')).toBeInTheDocument();
-    expect(screen.getByText('Status')).toBeInTheDocument();
-    expect(screen.getByText('Modified')).toBeInTheDocument();
+    // Check grid layout exists
+    expect(container.querySelector('._grid_b0a222')).toBeInTheDocument();
+    // Check tiles exist
+    const tiles = container.querySelectorAll('._tile_b0a222');
+    expect(tiles.length).toBe(3);
   });
 
   it('should show empty state when no documents', async () => {
@@ -64,33 +63,35 @@ describe('DocumentList', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/no documents yet/i)).toBeInTheDocument();
-      expect(screen.getByText(/upload your first document/i)).toBeInTheDocument();
+      expect(screen.getByText(/upload a document to get started/i)).toBeInTheDocument();
     });
   });
 
-  it('should handle document selection on row click', async () => {
+  it('should handle document selection on tile click', async () => {
     vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    const firstRow = screen.getByText('test-document.pdf').closest('tr')!;
-    fireEvent.click(firstRow);
+    const firstTile = container.querySelector('._tile_b0a222')!;
+    fireEvent.click(firstTile);
 
     expect(mockOnDocumentSelect).toHaveBeenCalledWith(mockDocuments[0]);
   });
 
-  it('should show document status badges', async () => {
+  it('should show document type abbreviations', async () => {
     vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
-      expect(screen.getByText('completed')).toBeInTheDocument();
-      expect(screen.getByText('processing')).toBeInTheDocument();
+      // Document types are shown as 3-letter abbreviations
+      expect(screen.getByText('PDF')).toBeInTheDocument();
+      expect(screen.getByText('WOR')).toBeInTheDocument(); // word -> WOR
+      expect(screen.getByText('POW')).toBeInTheDocument(); // powerpoint -> POW
     });
   });
 
@@ -108,6 +109,7 @@ describe('DocumentList', () => {
         metadata: {
           ...mockDocument.metadata,
           document_id: 'doc-2',
+          name: 'doc2.pdf',
           size: 1048576, // 1 MB
         },
       },
@@ -116,6 +118,7 @@ describe('DocumentList', () => {
         metadata: {
           ...mockDocument.metadata,
           document_id: 'doc-3',
+          name: 'doc3.pdf',
           size: 1073741824, // 1 GB
         },
       },
@@ -136,23 +139,19 @@ describe('DocumentList', () => {
 
     const user = userEvent.setup();
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    // Open the menu for the first document
-    const menuButtons = screen.getAllByRole('button');
-    const firstMenuButton = menuButtons.find(btn => btn.querySelector('svg')); // Find button with icon
+    // Find the delete button in the first tile
+    const firstTile = container.querySelector('._tile_b0a222');
+    const deleteButton = firstTile?.querySelector('button[title="Delete"]');
 
-    if (firstMenuButton) {
-      await user.click(firstMenuButton);
-
-      // Click delete option
-      const deleteOption = await screen.findByText('Delete');
-      await user.click(deleteOption);
-
+    if (deleteButton) {
+      await user.click(deleteButton);
+      // Confirm deletion if there's a confirmation dialog
       expect(documentApi.deleteDocument).toHaveBeenCalledWith('doc-123');
     }
   });
@@ -165,21 +164,18 @@ describe('DocumentList', () => {
 
     const user = userEvent.setup();
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    // Open menu and click delete
-    const menuButtons = screen.getAllByRole('button');
-    const firstMenuButton = menuButtons.find(btn => btn.querySelector('svg'));
+    // Find and click delete button
+    const firstTile = container.querySelector('._tile_b0a222');
+    const deleteButton = firstTile?.querySelector('button[title="Delete"]');
 
-    if (firstMenuButton) {
-      await user.click(firstMenuButton);
-      const deleteOption = await screen.findByText('Delete');
-      await user.click(deleteOption);
-
+    if (deleteButton) {
+      await user.click(deleteButton);
       // Should still have called the API
       expect(documentApi.deleteDocument).toHaveBeenCalled();
     }
@@ -241,9 +237,11 @@ describe('DocumentList', () => {
       },
     }]);
 
-    if (notificationCallback) {
-      notificationCallback({ type: 'document_created', data: mockDocument });
-    }
+    await act(async () => {
+      if (notificationCallback) {
+        notificationCallback({ type: 'document_created', data: mockDocument });
+      }
+    });
 
     await waitFor(() => {
       expect(documentApi.listDocuments).toHaveBeenCalledTimes(2);
@@ -263,15 +261,21 @@ describe('DocumentList', () => {
     });
   });
 
-  it('should show document type badges', async () => {
+  it('should show document icons for different types', async () => {
     vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
-      expect(screen.getByText('pdf')).toBeInTheDocument();
-      expect(screen.getByText('word')).toBeInTheDocument();
-      expect(screen.getByText('powerpoint')).toBeInTheDocument();
+      expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
+    });
+
+    // Should have icons for different document types
+    const tiles = container.querySelectorAll('._tile_b0a222');
+    expect(tiles.length).toBe(3);
+    // Each tile should have an icon
+    tiles.forEach(tile => {
+      expect(tile.querySelector('svg')).toBeInTheDocument();
     });
   });
 
@@ -282,7 +286,7 @@ describe('DocumentList', () => {
         ...mockDocument,
         metadata: {
           ...mockDocument.metadata,
-          updated_at: testDate,
+          created_at: testDate,
         },
       },
     ]);
@@ -290,57 +294,51 @@ describe('DocumentList', () => {
     render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
-      // Check if date is formatted (exact format may vary based on locale)
-      const dateElements = screen.getAllByText(/Jan|15|2024/);
-      expect(dateElements.length).toBeGreaterThan(0);
+      // Date should be formatted as toLocaleDateString which will include some form of Jan, 15, and 2024
+      // Using a more flexible matcher since exact format varies by environment
+      const container = document.body;
+      expect(container.textContent).toMatch(/1\/15\/2024|Jan 15, 2024|15 Jan 2024|2024-01-15/);
     });
   });
 
-  it('should handle view action from menu', async () => {
+  it('should handle tile click for viewing', async () => {
     vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
 
     const user = userEvent.setup();
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    // Open menu
-    const menuButtons = screen.getAllByRole('button');
-    const firstMenuButton = menuButtons.find(btn => btn.querySelector('svg'));
-
-    if (firstMenuButton) {
-      await user.click(firstMenuButton);
-
-      // Click view option
-      const viewOption = await screen.findByText('View');
-      await user.click(viewOption);
-
+    // Click on tile to view document
+    const firstTile = container.querySelector('._tile_b0a222');
+    if (firstTile) {
+      await user.click(firstTile);
       expect(mockOnDocumentSelect).toHaveBeenCalledWith(mockDocuments[0]);
     }
   });
 
-  it('should stop event propagation on menu button click', async () => {
+  it('should stop event propagation on delete button click', async () => {
     vi.mocked(documentApi.listDocuments).mockResolvedValueOnce(mockDocuments);
+    vi.mocked(documentApi.deleteDocument).mockResolvedValueOnce(undefined);
 
     const user = userEvent.setup();
 
-    render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
+    const { container } = render(<DocumentList onDocumentSelect={mockOnDocumentSelect} />);
 
     await waitFor(() => {
       expect(screen.getByText('test-document.pdf')).toBeInTheDocument();
     });
 
-    // Click menu button (should not trigger row selection)
-    const menuButtons = screen.getAllByRole('button');
-    const firstMenuButton = menuButtons.find(btn => btn.querySelector('svg'));
+    // Click delete button (should not trigger tile selection)
+    const firstTile = container.querySelector('._tile_b0a222');
+    const deleteButton = firstTile?.querySelector('button[title="Delete"]');
 
-    if (firstMenuButton) {
-      await user.click(firstMenuButton);
-
-      // onDocumentSelect should not be called from menu button click
+    if (deleteButton) {
+      await user.click(deleteButton);
+      // onDocumentSelect should not be called from delete button click
       expect(mockOnDocumentSelect).not.toHaveBeenCalled();
     }
   });

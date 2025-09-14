@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { X, Save, Download, History, Maximize2, Minimize2 } from 'lucide-react';
 import classNames from 'classnames';
 import { DocumentBench } from './DocumentBench';
 import { DocumentTabs } from './DocumentTabs';
 import type { DocumentMessage } from '../../services/api';
+import { logger } from '../../services/logging';
 import styles from './Bench.module.css';
 
 interface BenchProps {
@@ -11,25 +12,18 @@ interface BenchProps {
   onClose?: () => void;
 }
 
-export const Bench: React.FC<BenchProps> = ({ selectedDocument, onClose }) => {
+export interface BenchRef {
+  closeDocument: (documentId: string) => void;
+}
+
+export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClose }, ref) => {
+  logger.debug('Bench component render', { selectedDocument });
   const [openDocuments, setOpenDocuments] = useState<DocumentMessage[]>([]);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
 
-  // Add selected document to open documents if not already open
-  useEffect(() => {
-    if (selectedDocument && selectedDocument.metadata) {
-      const docId = selectedDocument.metadata.document_id;
-      const isOpen = openDocuments.some(doc => doc.metadata.document_id === docId);
-
-      if (!isOpen) {
-        setOpenDocuments(prev => [...prev, selectedDocument]);
-      }
-      setActiveDocumentId(docId);
-    }
-  }, [selectedDocument]);
-
+  // Define handleCloseDocument before useImperativeHandle
   const handleCloseDocument = (documentId: string) => {
     setOpenDocuments(prev => prev.filter(doc => doc.metadata.document_id !== documentId));
 
@@ -51,9 +45,32 @@ export const Bench: React.FC<BenchProps> = ({ selectedDocument, onClose }) => {
     });
   };
 
+  // Expose closeDocument method to parent component
+  useImperativeHandle(ref, () => ({
+    closeDocument: handleCloseDocument
+  }), [openDocuments, activeDocumentId]);
+
+  // Add selected document to open documents if not already open
+  useEffect(() => {
+    logger.debug('Bench useEffect triggered', { selectedDocument });
+    if (selectedDocument && selectedDocument.metadata) {
+      const docId = selectedDocument.metadata.document_id;
+      logger.debug('Processing document', { documentId: docId });
+      const isOpen = openDocuments.some(doc => doc.metadata.document_id === docId);
+      logger.debug('Document open status', { documentId: docId, isOpen });
+
+      if (!isOpen) {
+        setOpenDocuments(prev => [...prev, selectedDocument]);
+        logger.info('Added document to open documents', { documentId: docId });
+      }
+      setActiveDocumentId(docId);
+      logger.debug('Set active document', { documentId: docId });
+    }
+  }, [selectedDocument, openDocuments]);
+
   const handleSaveDocument = async (documentId: string) => {
     // TODO: Implement save functionality
-    console.log('Saving document:', documentId);
+    logger.info('Saving document', { documentId });
     setUnsavedChanges(prev => {
       const newMap = new Map(prev);
       newMap.set(documentId, false);
@@ -106,7 +123,7 @@ export const Bench: React.FC<BenchProps> = ({ selectedDocument, onClose }) => {
 
           <button
             className={styles.actionButton}
-            onClick={() => console.log('Download')}
+            onClick={() => logger.info('Download clicked')}
             title="Download document"
           >
             <Download size={18} />
@@ -114,7 +131,7 @@ export const Bench: React.FC<BenchProps> = ({ selectedDocument, onClose }) => {
 
           <button
             className={styles.actionButton}
-            onClick={() => console.log('Version history')}
+            onClick={() => logger.info('Version history clicked')}
             title="Version history"
           >
             <History size={18} />
@@ -140,4 +157,6 @@ export const Bench: React.FC<BenchProps> = ({ selectedDocument, onClose }) => {
       </div>
     </div>
   );
-};
+});
+
+Bench.displayName = 'Bench';

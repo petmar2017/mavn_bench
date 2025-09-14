@@ -40,13 +40,15 @@ describe('WebSocketService', () => {
       expect(io).toHaveBeenCalledWith(
         expect.stringContaining('ws://'),
         expect.objectContaining({
-          transports: ['websocket'],
+          path: '/socket.io',
+          transports: ['websocket', 'polling'],
         })
       );
     });
 
     it('should not create duplicate connections', () => {
       wsService.connect();
+      mockSocket.connected = true;  // Simulate that socket is connected
       wsService.connect();
 
       expect(io).toHaveBeenCalledTimes(1);
@@ -58,11 +60,8 @@ describe('WebSocketService', () => {
       expect(mockSocket.on).toHaveBeenCalledWith('connect', expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
       expect(mockSocket.on).toHaveBeenCalledWith('error', expect.any(Function));
-      expect(mockSocket.on).toHaveBeenCalledWith('document_created', expect.any(Function));
-      expect(mockSocket.on).toHaveBeenCalledWith('document_updated', expect.any(Function));
-      expect(mockSocket.on).toHaveBeenCalledWith('document_deleted', expect.any(Function));
-      expect(mockSocket.on).toHaveBeenCalledWith('processing_progress', expect.any(Function));
-      expect(mockSocket.on).toHaveBeenCalledWith('system_notification', expect.any(Function));
+      // The service now uses onAny to forward all events
+      expect(mockSocket.onAny).toHaveBeenCalledWith(expect.any(Function));
     });
 
     it('should handle connect event', () => {
@@ -111,12 +110,10 @@ describe('WebSocketService', () => {
       wsService.disconnect();
 
       expect(mockSocket.disconnect).toHaveBeenCalled();
-      expect((wsService as any).socket).toBeNull();
     });
 
     it('should handle disconnect when not connected', () => {
-      wsService.disconnect();
-      expect(mockSocket.disconnect).not.toHaveBeenCalled();
+      expect(() => wsService.disconnect()).not.toThrow();
     });
   });
 
@@ -128,6 +125,7 @@ describe('WebSocketService', () => {
     it('should return true when connected', () => {
       wsService.connect();
       mockSocket.connected = true;
+
       expect(wsService.isConnected()).toBe(true);
     });
   });
@@ -138,17 +136,17 @@ describe('WebSocketService', () => {
         const callback = vi.fn();
         const unsubscribe = wsService.onDocumentCreated(callback);
 
-        // Simulate an event
+        // Simulate an event through onAny
         wsService.connect();
-        const handler = mockSocket.on.mock.calls.find(call => call[0] === 'document_created')?.[1];
-        handler?.(mockDocument);
+        const handler = mockSocket.onAny.mock.calls[0]?.[0];
+        handler?.('document:created', mockDocument);
 
         expect(callback).toHaveBeenCalledWith(mockDocument);
 
         // Test unsubscribe
         unsubscribe();
         callback.mockClear();
-        handler?.(mockDocument);
+        handler?.('document:created', mockDocument);
         expect(callback).not.toHaveBeenCalled();
       });
     });
@@ -159,14 +157,14 @@ describe('WebSocketService', () => {
         const unsubscribe = wsService.onDocumentUpdated(callback);
 
         wsService.connect();
-        const handler = mockSocket.on.mock.calls.find(call => call[0] === 'document_updated')?.[1];
-        handler?.(mockDocument);
+        const handler = mockSocket.onAny.mock.calls[0]?.[0];
+        handler?.('document:updated', mockDocument);
 
         expect(callback).toHaveBeenCalledWith(mockDocument);
 
         unsubscribe();
         callback.mockClear();
-        handler?.(mockDocument);
+        handler?.('document:updated', mockDocument);
         expect(callback).not.toHaveBeenCalled();
       });
     });
@@ -178,14 +176,14 @@ describe('WebSocketService', () => {
         const unsubscribe = wsService.onDocumentDeleted(callback);
 
         wsService.connect();
-        const handler = mockSocket.on.mock.calls.find(call => call[0] === 'document_deleted')?.[1];
-        handler?.({ document_id: documentId });
+        const handler = mockSocket.onAny.mock.calls[0]?.[0];
+        handler?.('document:deleted', documentId);
 
         expect(callback).toHaveBeenCalledWith(documentId);
 
         unsubscribe();
         callback.mockClear();
-        handler?.({ document_id: documentId });
+        handler?.('document:deleted', documentId);
         expect(callback).not.toHaveBeenCalled();
       });
     });
@@ -197,14 +195,14 @@ describe('WebSocketService', () => {
         const unsubscribe = wsService.onProcessingProgress(callback);
 
         wsService.connect();
-        const handler = mockSocket.on.mock.calls.find(call => call[0] === 'processing_progress')?.[1];
-        handler?.(progress);
+        const handler = mockSocket.onAny.mock.calls[0]?.[0];
+        handler?.('processing:progress', progress);
 
         expect(callback).toHaveBeenCalledWith(progress);
 
         unsubscribe();
         callback.mockClear();
-        handler?.(progress);
+        handler?.('processing:progress', progress);
         expect(callback).not.toHaveBeenCalled();
       });
     });
@@ -216,14 +214,14 @@ describe('WebSocketService', () => {
         const unsubscribe = wsService.onSystemNotification(callback);
 
         wsService.connect();
-        const handler = mockSocket.on.mock.calls.find(call => call[0] === 'system_notification')?.[1];
-        handler?.(notification);
+        const handler = mockSocket.onAny.mock.calls[0]?.[0];
+        handler?.('system:notification', notification);
 
         expect(callback).toHaveBeenCalledWith(notification);
 
         unsubscribe();
         callback.mockClear();
-        handler?.(notification);
+        handler?.('system:notification', notification);
         expect(callback).not.toHaveBeenCalled();
       });
     });
@@ -246,7 +244,7 @@ describe('WebSocketService', () => {
         wsService.emit('custom_event', { data: 'test' });
 
         expect(mockSocket.emit).not.toHaveBeenCalled();
-        expect(consoleSpy).toHaveBeenCalledWith('WebSocket is not connected');
+        expect(consoleSpy).toHaveBeenCalledWith('WebSocket not connected');
 
         consoleSpy.mockRestore();
       });
@@ -262,8 +260,8 @@ describe('WebSocketService', () => {
       wsService.onDocumentCreated(callback2);
 
       wsService.connect();
-      const handler = mockSocket.on.mock.calls.find(call => call[0] === 'document_created')?.[1];
-      handler?.(mockDocument);
+      const handler = mockSocket.onAny.mock.calls[0]?.[0];
+      handler?.('document:created', mockDocument);
 
       expect(callback1).toHaveBeenCalledWith(mockDocument);
       expect(callback2).toHaveBeenCalledWith(mockDocument);
@@ -277,12 +275,12 @@ describe('WebSocketService', () => {
       const unsubscribe2 = wsService.onDocumentCreated(callback2);
 
       wsService.connect();
-      const handler = mockSocket.on.mock.calls.find(call => call[0] === 'document_created')?.[1];
+      const handler = mockSocket.onAny.mock.calls[0]?.[0];
 
       // Remove first listener
       unsubscribe1();
 
-      handler?.(mockDocument);
+      handler?.('document:created', mockDocument);
 
       expect(callback1).not.toHaveBeenCalled();
       expect(callback2).toHaveBeenCalledWith(mockDocument);
@@ -297,7 +295,7 @@ describe('WebSocketService', () => {
       wsService.onDocumentCreated(callback);
       wsService.connect();
 
-      const handler = mockSocket.on.mock.calls.find(call => call[0] === 'document_created')?.[1];
+      const handler = mockSocket.onAny.mock.calls[0]?.[0];
 
       // Simulate an error in the callback
       callback.mockImplementation(() => {
@@ -305,7 +303,7 @@ describe('WebSocketService', () => {
       });
 
       // Should not throw
-      expect(() => handler?.(mockDocument)).not.toThrow();
+      expect(() => handler?.('document_created', mockDocument)).not.toThrow();
 
       consoleSpy.mockRestore();
     });

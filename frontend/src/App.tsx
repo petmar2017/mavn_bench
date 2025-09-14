@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Moon, Sun, FileText, Upload, FolderOpen, Search, Trash2 } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import classNames from 'classnames';
@@ -28,6 +28,16 @@ function AppContent() {
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
   const [activeTab, setActiveTab] = useState('documents');
   const [toasts, setToasts] = useState<Array<{ id: string; title: string; description: string; type: string }>>([]);
+  const benchRef = useRef<any>(null);
+
+  // Search state - persists across tab switches
+  const [searchState, setSearchState] = useState({
+    query: '',
+    searchType: 'vector' as any,
+    results: [] as any[],
+    hasSearched: false,
+    error: null as string | null
+  });
 
   const toggleColorMode = () => {
     setColorMode(prev => {
@@ -109,12 +119,34 @@ function AppContent() {
     });
   };
 
+  const handleDocumentDeleted = (documentId: string) => {
+    // Close the tab in the Bench if it's open
+    if (benchRef.current) {
+      benchRef.current.closeDocument(documentId);
+    }
+    logger.info('Document deleted and tab closed', { documentId });
+  };
+
   const handleSearchResultSelect = async (result: SearchResult) => {
     // Load the full document from the search result
     logger.debug('Search result selected', { result });
     try {
       const document = await documentApi.getDocument(result.document_id);
+      logger.debug('Document fetched', { document });
+
+      // Check if document has the expected structure
+      if (!document || !document.metadata) {
+        logger.error('Invalid document structure', { document });
+        showToast({
+          title: 'Error',
+          message: 'Invalid document format received',
+          type: 'error'
+        });
+        return;
+      }
+
       setSelectedDocument(document);
+      logger.debug('Document set as selected', { documentId: document.metadata.document_id });
     } catch (error) {
       logger.error('Failed to load document from search result', { error });
       showToast({
@@ -197,42 +229,31 @@ function AppContent() {
           <div className={styles.sidebarContent}>
             {activeTab === 'upload' && (
               <div className={styles.sidebarPanel}>
-                <div className={styles.panelHeader}>
-                  <h2>Upload Document</h2>
-                  <p>Drag and drop or click to upload files</p>
-                </div>
                 <DocumentUpload onUploadSuccess={handleUploadSuccess} />
               </div>
             )}
 
             {activeTab === 'documents' && (
               <div className={styles.sidebarPanel}>
-                <div className={styles.panelHeader}>
-                  <h2>Document Library</h2>
-                  <p>View and manage your documents</p>
-                </div>
                 <DocumentList
                   refresh={refreshDocuments}
                   onDocumentSelect={handleDocumentSelect}
+                  onDocumentDeleted={handleDocumentDeleted}
                 />
               </div>
             )}
 
             {activeTab === 'search' && (
               <div className={styles.sidebarPanel}>
-                <div className={styles.panelHeader}>
-                  <h2>Search Documents</h2>
-                  <p>Search across all your documents</p>
-                </div>
-                <SearchInterface onResultSelect={handleSearchResultSelect} />
+                <SearchInterface
+                  onResultSelect={handleSearchResultSelect}
+                  searchState={searchState}
+                  onSearchStateChange={setSearchState}
+                />
               </div>
             )}
             {activeTab === 'trash' && (
               <div className={styles.sidebarPanel}>
-                <div className={styles.panelHeader}>
-                  <h2>Trash</h2>
-                  <p>Recently deleted documents</p>
-                </div>
                 <TrashList refresh={refreshDocuments} />
               </div>
             )}
@@ -242,6 +263,7 @@ function AppContent() {
         {/* Right Bench Area */}
         <div className={styles.benchArea}>
           <Bench
+            ref={benchRef}
             selectedDocument={selectedDocument}
             onClose={() => setSelectedDocument(null)}
           />

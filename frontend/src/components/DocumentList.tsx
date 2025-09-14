@@ -9,10 +9,11 @@ import styles from './DocumentList.module.css';
 
 interface DocumentListProps {
   onDocumentSelect?: (document: DocumentMessage) => void;
+  onDocumentDeleted?: (documentId: string) => void;
   refresh?: number;
 }
 
-export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, refresh }) => {
+export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, onDocumentDeleted, refresh }) => {
   const [documents, setDocuments] = useState<DocumentMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,10 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
     try {
       await documentApi.deleteDocument(documentId);
       fetchDocuments();
+      // Notify parent that document was deleted
+      if (onDocumentDeleted) {
+        onDocumentDeleted(documentId);
+      }
     } catch (err: any) {
       console.error('Failed to delete document:', err);
       setError(err.response?.data?.detail || err.message || 'Failed to delete document');
