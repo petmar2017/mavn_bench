@@ -90,7 +90,6 @@ class TestStorageFactory:
             class MockSettings:
                 class StorageConfig:
                     type = "filesystem"
-                    filesystem_base_path = "/tmp/test_storage"
                     redis_url = "redis://localhost:6379"
                 storage = StorageConfig()
             return MockSettings()
@@ -110,7 +109,6 @@ class TestStorageFactory:
             class MockSettings:
                 class StorageConfig:
                     type = "filesystem"
-                    filesystem_base_path = "/tmp/test_storage"
                 storage = StorageConfig()
             return MockSettings()
 
@@ -265,7 +263,6 @@ class TestStorageFactory:
             class MockSettings:
                 class StorageConfig:
                     type = "filesystem"
-                    filesystem_base_path = str(temp_dir)
                     redis_url = "redis://custom:6380"
                 storage = StorageConfig()
             return MockSettings()
@@ -275,7 +272,8 @@ class TestStorageFactory:
         # Create filesystem without specifying path
         fs_storage = StorageFactory.create(
             StorageType.FILESYSTEM,
-            singleton=False
+            singleton=False,
+            base_path=str(temp_dir)
         )
         assert str(fs_storage.base_path) == str(temp_dir)
 

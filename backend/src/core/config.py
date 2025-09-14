@@ -84,7 +84,10 @@ class Settings(BaseSettings):
     app_version: str = Field(default="1.0.0", env="APP_VERSION")
     debug: bool = Field(default=False, env="DEBUG")
     environment: str = Field(default="development", env="ENVIRONMENT")
-    
+    # Log level is handled directly in logger.py, but we need to accept it here
+    # to avoid Pydantic validation errors when it's in the environment
+    mavn_log_level: Optional[str] = Field(default="INFO", env="MAVN_LOG_LEVEL")
+
     storage: StorageConfig = Field(default_factory=StorageConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)

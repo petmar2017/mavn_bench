@@ -31,11 +31,11 @@ class BaseService:
             })
             
             try:
-                self.logger.info(f"Starting {operation_name}", 
-                               extra={"attributes": attributes})
+                self.logger.debug(f"Starting {operation_name}",
+                                extra={"attributes": attributes})
                 yield span
                 span.set_status(Status(StatusCode.OK))
-                self.logger.info(f"Completed {operation_name}")
+                self.logger.debug(f"Completed {operation_name}")
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))

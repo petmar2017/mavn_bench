@@ -78,3 +78,33 @@
        663 +                      "improved_extraction": extracted_text,
        664 +                      "validation_notes": f"Validation failed: {str(e)}"
        665 +                  }
+
+
+
+       ed src/services/queue_service.py with 5 additions and 12 removals                                  
+       312                    job.progress = 30
+       313                    await self._notify_job_progress(job)
+       314    
+       315 -                  # Validate and potentially re-extract with LLM if quality is poor
+       316 -                  validation_result = await pdf_service.validate_and_extract_pdf(
+       317 -                      job.file_path,
+       318 -                      markdown_content
+       319 -                  )
+       315 +                  # Skip LLM validation for now - it's causing processing to hang
+       316 +                  # TODO: Re-enable once LLM service is properly configured
+       317 +                  formatted_content = markdown_content
+       318 +                  raw_text = markdown_content
+       319                    job.progress = 50
+       320                    await self._notify_job_progress(job)
+       321    
+       322 -                  if validation_result.get("needs_reprocessing"):
+       323 -                      logger.info(f"PDF extraction was poor quality, using LLM-improved version")
+       324 -                      formatted_content = validation_result["improved_extraction"]
+       325 -                      raw_text = validation_result["improved_extraction"]
+       326 -                  else:
+       327 -                      formatted_content = markdown_content
+       328 -                      raw_text = markdown_content
+       322 +                  logger.info(f"PDF processed without LLM validation: {job.document_id}")
+       323    
+       324                elif job.file_type in [DocumentType.WORD.value, DocumentType.TEXT.value]:
+       325                    # For Word and text files, extract text and convert to markdown

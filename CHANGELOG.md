@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Logger Improvements and Frontend Configuration (2025-01-14 - Late Night)
+- **Logger Enhancements**:
+  - Made service names bold and colored to match log levels for better visual hierarchy
+  - Added bold white formatting for log messages to make them stand out
+  - Changed traced operation messages from INFO to DEBUG level to reduce log noise
+  - Made log level configurable via `MAVN_LOG_LEVEL` environment variable (defaults to INFO)
+  - Fixed Pydantic validation errors related to log level configuration
+
+- **Frontend API Configuration**:
+  - Created centralized API configuration (`frontend/src/config/api.config.ts`)
+  - Fixed frontend-backend connection issues with proper Vite proxy configuration
+  - Consolidated all API endpoints, WebSocket URLs, and authentication settings
+  - Added environment-aware URL configuration (development uses proxy, production uses full URLs)
+
+- **Configuration Fixes**:
+  - Removed deprecated `filesystem_base_path` from storage configuration
+  - Updated storage to default to Redis-only (filesystem option removed)
+  - Fixed backend startup issues related to configuration validation
+  - Cleaned up .env file to remove conflicting settings
+
 ### Redis-Based Distributed Queue Architecture (2025-01-14 - Evening)
 - **Major Architecture Change**: Migrated to Redis-only storage and queue system for horizontal scaling
   - Removed filesystem storage option completely - now Redis-only for all document storage

@@ -29,8 +29,8 @@ class FilesystemStorage(StorageAdapter):
             base_path: Base directory for document storage
         """
         super().__init__("filesystem")
-        settings = get_settings()
-        self.base_path = Path(base_path or settings.storage.filesystem_base_path)
+        # Use provided base_path or default to ./document_store
+        self.base_path = Path(base_path or "./document_store")
 
         # Create base directory if it doesn't exist
         self.base_path.mkdir(parents=True, exist_ok=True)

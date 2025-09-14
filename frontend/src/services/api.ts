@@ -1,9 +1,9 @@
 import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL, AUTH_CONFIG, REQUEST_CONFIG } from '../config/api.config';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: REQUEST_CONFIG.timeout,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -11,9 +11,9 @@ export const api = axios.create({
 
 // Add request interceptor for authentication
 api.interceptors.request.use((config) => {
-  const apiKey = localStorage.getItem('apiKey');
+  const apiKey = localStorage.getItem(AUTH_CONFIG.apiKeyStorageKey) || AUTH_CONFIG.defaultApiKey;
   if (apiKey) {
-    config.headers['X-API-Key'] = apiKey;
+    config.headers[AUTH_CONFIG.apiKeyHeader] = apiKey;
   }
   return config;
 });

@@ -3,6 +3,7 @@
 import logging
 import json
 import sys
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional
 from opentelemetry import trace
@@ -10,20 +11,27 @@ from opentelemetry.trace import Status, StatusCode
 
 class CentralizedLogger:
     """Central logger with trace context injection"""
-    
+
     def __init__(self, service_name: str):
         self.service_name = service_name
         self.logger = logging.getLogger(service_name)
-        self.logger.setLevel(logging.DEBUG)
+
+        # Get log level from environment or default to INFO
+        # Using MAVN_LOG_LEVEL to avoid conflict with Pydantic settings
+        log_level_str = os.getenv('MAVN_LOG_LEVEL', 'INFO').upper()
+        log_level = getattr(logging, log_level_str, logging.INFO)
+        self.logger.setLevel(log_level)
         
         # Console handler with human-readable format
         console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(log_level)
         console_handler.setFormatter(self._get_console_formatter())
-        
+
         # JSON handler for observability platforms
         json_handler = logging.StreamHandler(sys.stderr)
+        json_handler.setLevel(log_level)
         json_handler.setFormatter(self._get_json_formatter())
-        
+
         self.logger.addHandler(console_handler)
         self.logger.addHandler(json_handler)
     
@@ -40,6 +48,7 @@ class CentralizedLogger:
             }
             RESET = '\033[0m'
             BOLD = '\033[1m'
+            WHITE = '\033[37m'     # White color for message
 
             def format(self, record):
                 # Add default values for missing fields
@@ -48,16 +57,27 @@ class CentralizedLogger:
                 record.user_id = getattr(record, 'user_id', None)
                 record.session_id = getattr(record, 'session_id', None)
 
-                # Add color to level name
+                # Store original values
                 levelname = record.levelname
+                service_name = record.name
+                original_msg = record.msg
+
+                # Add color and bold to both level name and service name
                 if levelname in self.COLORS:
-                    record.levelname = f"{self.COLORS[levelname]}{self.BOLD}{levelname}{self.RESET}"
+                    color = self.COLORS[levelname]
+                    record.levelname = f"{color}{self.BOLD}{levelname}{self.RESET}"
+                    record.name = f"{color}{self.BOLD}{service_name}{self.RESET}"
+
+                # Make the message bold and white
+                record.msg = f"{self.WHITE}{self.BOLD}{original_msg}{self.RESET}"
 
                 # Format the message
                 formatted = super().format(record)
 
-                # Reset levelname for other handlers
+                # Reset values for other handlers
                 record.levelname = levelname
+                record.name = service_name
+                record.msg = original_msg
                 return formatted
 
         return ConsoleFormatter(
