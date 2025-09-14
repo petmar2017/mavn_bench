@@ -23,24 +23,46 @@ from ..core.config import get_settings
 class PDFService(BaseService):
     """Service for PDF processing and conversion"""
 
-    def __init__(self, use_ai: bool = True):
+    def __init__(self, use_ai: bool = True, prefer_pymupdf: bool = True):
         """Initialize PDF service
 
         Args:
             use_ai: Whether to use Claude AI for PDF conversion
+            prefer_pymupdf: Whether to prefer PyMuPDF over AI when both are available
         """
         super().__init__("PDFService")
         self.supported_formats = [".pdf"]
         self.use_ai = use_ai
+        self.prefer_pymupdf = prefer_pymupdf
+
+        # Check which PDF libraries are available
+        self.has_pymupdf = self._check_pymupdf()
+        self.has_pypdf2 = self._check_pypdf2()
 
         # Initialize LLM service for AI-powered PDF conversion
         self.llm_service = None
         settings = get_settings()
         if use_ai and settings.llm.anthropic_api_key:
             self.llm_service = LLMService(provider=LLMProvider.ANTHROPIC)
-            self.logger.info("Initialized PDFService with Claude AI conversion")
+            self.logger.info(f"Initialized PDFService with Claude AI (PyMuPDF: {self.has_pymupdf}, PyPDF2: {self.has_pypdf2})")
         else:
-            self.logger.info("Initialized PDFService with traditional conversion")
+            self.logger.info(f"Initialized PDFService with traditional conversion (PyMuPDF: {self.has_pymupdf}, PyPDF2: {self.has_pypdf2})")
+
+    def _check_pymupdf(self) -> bool:
+        """Check if PyMuPDF is available"""
+        try:
+            import fitz
+            return True
+        except ImportError:
+            return False
+
+    def _check_pypdf2(self) -> bool:
+        """Check if PyPDF2 is available"""
+        try:
+            import PyPDF2
+            return True
+        except ImportError:
+            return False
 
     async def pdf_to_markdown(self, file_path: str) -> str:
         """Convert PDF to markdown format
@@ -64,12 +86,26 @@ class PDFService(BaseService):
                 if not file_path.lower().endswith(".pdf"):
                     raise ValueError(f"File is not a PDF: {file_path}")
 
-                # Use Claude AI if available, otherwise fall back to traditional method
-                if self.use_ai and self.llm_service:
-                    markdown = await self._ai_pdf_to_markdown(file_path)
-                else:
-                    # Use asyncio.to_thread for CPU-intensive PDF processing
+                # Decide which method to use based on availability and preferences
+                if self.prefer_pymupdf and self.has_pymupdf:
+                    # Prefer PyMuPDF if available and preferred
                     markdown = await asyncio.to_thread(self._sync_pdf_to_markdown, file_path)
+                    self.logger.info("Using PyMuPDF for PDF conversion")
+                elif self.use_ai and self.llm_service and (self.has_pymupdf or self.has_pypdf2):
+                    # Use Claude AI if we can extract basic text first
+                    markdown = await self._ai_pdf_to_markdown(file_path)
+                    self.logger.info("Using Claude AI for PDF conversion")
+                elif self.has_pymupdf:
+                    # Fall back to PyMuPDF if available
+                    markdown = await asyncio.to_thread(self._sync_pdf_to_markdown, file_path)
+                    self.logger.info("Using PyMuPDF for PDF conversion (fallback)")
+                elif self.has_pypdf2:
+                    # Last resort: use PyPDF2
+                    markdown = await asyncio.to_thread(self._basic_pdf_extract, file_path)
+                    self.logger.info("Using PyPDF2 for PDF conversion (fallback)")
+                else:
+                    # No PDF library available
+                    raise RuntimeError("No PDF processing library available. Install PyMuPDF or PyPDF2.")
 
                 self.logger.info(f"Converted PDF to markdown: {file_path}")
                 return markdown
@@ -258,7 +294,7 @@ Output only the Markdown content for this page:"""
             return await self._ai_pdf_to_markdown(file_path, use_vision=False)
 
     def _basic_pdf_extract(self, file_path: str) -> str:
-        """Basic PDF text extraction fallback
+        """Basic PDF text extraction fallback using PyPDF2
 
         Args:
             file_path: Path to the PDF file
@@ -266,9 +302,38 @@ Output only the Markdown content for this page:"""
         Returns:
             Extracted text
         """
-        # This is a placeholder for basic extraction
-        # In production, would use a library like pypdf2 or pdfplumber
-        return f"# PDF Content\n\nBasic extraction from: {file_path}\n\n[PDF extraction requires PyMuPDF library]"
+        try:
+            # Try using PyPDF2 as a fallback
+            from PyPDF2 import PdfReader
+
+            reader = PdfReader(file_path)
+            text_content = []
+
+            for page_num, page in enumerate(reader.pages, 1):
+                text_content.append(f"## Page {page_num}\n")
+                page_text = page.extract_text()
+                if page_text:
+                    # Clean up the text a bit
+                    lines = page_text.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if line:
+                            text_content.append(line)
+                    text_content.append("")  # Add blank line between pages
+
+            extracted_text = "\n".join(text_content)
+
+            if extracted_text.strip():
+                self.logger.info("Successfully extracted PDF text using PyPDF2 fallback")
+                return extracted_text
+            else:
+                self.logger.warning("PyPDF2 extracted no text from PDF")
+                return "# PDF Content\n\nNo text content could be extracted from this PDF file."
+
+        except Exception as e:
+            self.logger.error(f"PyPDF2 extraction failed: {str(e)}")
+            # Last resort fallback
+            return f"# PDF Content\n\nFailed to extract content from PDF: {str(e)}"
 
     async def extract_metadata(self, file_path: str) -> Dict[str, Any]:
         """Extract metadata from PDF file
@@ -580,5 +645,14 @@ Output only the Markdown content for this page:"""
                 }
 
 
-# Register with factory
-ServiceFactory.register(ServiceType.PDF, PDFService)
+# Register with factory using configuration
+def create_pdf_service():
+    """Factory function to create PDFService with configuration settings"""
+    from src.core.config import get_settings
+    settings = get_settings()
+    return PDFService(
+        use_ai=settings.llm.pdf_use_ai,
+        prefer_pymupdf=settings.llm.pdf_prefer_pymupdf
+    )
+
+ServiceFactory.register(ServiceType.PDF, create_pdf_service)

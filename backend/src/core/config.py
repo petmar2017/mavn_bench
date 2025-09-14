@@ -47,6 +47,10 @@ class LLMConfig(BaseSettings):
     max_tokens: int = Field(default=4000, env="LLM_MAX_TOKENS")
     temperature: float = Field(default=0.3, env="LLM_TEMPERATURE")
 
+    # PDF processing settings
+    pdf_use_ai: bool = Field(default=True, env="PDF_USE_AI", description="Use Claude AI for PDF processing")
+    pdf_prefer_pymupdf: bool = Field(default=True, env="PDF_PREFER_PYMUPDF", description="Prefer PyMuPDF over Claude AI when available")
+
 class MCPConfig(BaseSettings):
     enabled: bool = Field(default=True, env="MCP_ENABLED")
     servers: List[Dict[str, Any]] = Field(default_factory=list)

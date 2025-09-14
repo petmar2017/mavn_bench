@@ -19,10 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Documents now sorted by updated_at/created_at in descending order
   - Enhanced CSS styling for PDF viewer with proper headers
   - Added empty state messaging for documents without content
-- **Backend PDF Processing**:
-  - PDF content extracted using PyMuPDF or Claude AI
-  - Converted content stored as markdown for display
-  - Content accessible via lazy-loading endpoint
+- **Backend PDF Processing Enhancements**:
+  - Fixed PDF extraction fallback chain (PyMuPDF → Claude AI → PyPDF2)
+  - Resolved issue where Claude AI received empty content due to placeholder text
+  - Implemented proper PyPDF2 extraction in `_basic_pdf_extract` method
+  - Added configuration options for PDF processing preferences via environment variables
+  - Created factory function for PDFService with configurable AI and PyMuPDF preferences
+  - PDF_USE_AI and PDF_PREFER_PYMUPDF environment variables control processing method
 
 ### UI Improvements and Architecture Updates (2025-09-14)
 - **Frontend UI Restructuring**:
