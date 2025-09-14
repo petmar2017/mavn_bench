@@ -17,7 +17,7 @@ import json
 
 from src.services.base_service import BaseService
 from src.models.document import ProcessingStage, DocumentType
-from src.core.logging import get_logger
+from src.core.logger import get_logger
 from src.storage.storage_factory import StorageFactory, StorageType
 
 logger = get_logger(__name__)
