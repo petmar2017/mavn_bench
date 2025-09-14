@@ -279,10 +279,12 @@ class TestTranscriptionService:
         # Store document
         await transcription_service.storage.store("test_trans_123", test_doc)
 
-        # Retrieve and verify
+        # Retrieve and verify - storage returns DocumentMessage object
         retrieved = await transcription_service.storage.load("test_trans_123")
         assert retrieved is not None
-        assert retrieved["metadata"]["document_id"] == "test_trans_123"
+        assert retrieved.metadata.document_id == "test_trans_123"
+        assert retrieved.metadata.name == "Test Video"
+        assert retrieved.content.raw_text == "test content"
 
         # Cleanup
         await transcription_service.storage.delete("test_trans_123")

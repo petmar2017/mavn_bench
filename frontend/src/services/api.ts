@@ -108,13 +108,33 @@ export const searchApi = {
   },
 
   async fulltextSearch(query: SearchQuery) {
-    const response = await api.post<{ results: SearchResult[] }>('/api/search/fulltext', query);
-    return response.data.results || [];
+    try {
+      const response = await api.post<SearchResult[] | { results: SearchResult[] }>('/api/search/fulltext', query);
+      // Handle both direct array and wrapped response formats
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return response.data.results || [];
+    } catch (error: any) {
+      // If there's a validation error, return empty array
+      console.error('Fulltext search error:', error.response?.data);
+      return [];
+    }
   },
 
   async graphSearch(query: SearchQuery) {
-    const response = await api.post<{ results: SearchResult[] }>('/api/search/graph', query);
-    return response.data.results || [];
+    try {
+      const response = await api.post<SearchResult[] | { results: SearchResult[] }>('/api/search/graph', query);
+      // Handle both direct array and wrapped response formats
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return response.data.results || [];
+    } catch (error: any) {
+      // If there's a validation error, return empty array
+      console.error('Graph search error:', error.response?.data);
+      return [];
+    }
   },
 
   async hybridSearch(query: SearchQuery) {

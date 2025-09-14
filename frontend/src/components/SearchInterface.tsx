@@ -45,7 +45,20 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
           break;
       }
 
-      setResults(searchResults);
+      // Ensure searchResults is always an array and contains valid SearchResult objects
+      if (Array.isArray(searchResults)) {
+        // Filter out any invalid results
+        const validResults = searchResults.filter(result =>
+          result &&
+          typeof result === 'object' &&
+          'document_id' in result &&
+          'metadata' in result
+        );
+        setResults(validResults);
+      } else {
+        console.error('Invalid search results format:', searchResults);
+        setResults([]);
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Search failed. Please try again.');
       setResults([]);
@@ -200,9 +213,9 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
                 )}
               </div>
 
-              {result.highlights && result.highlights.length > 0 && (
+              {result.highlights && Array.isArray(result.highlights) && result.highlights.length > 0 && (
                 <div className={styles.resultExcerpt}>
-                  {highlightQuery(result.highlights[0])}
+                  {typeof result.highlights[0] === 'string' ? highlightQuery(result.highlights[0]) : ''}
                 </div>
               )}
 

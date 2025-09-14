@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Lazy Loading</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 10px; padding: 10px; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Document Content Lazy Loading Test</h1>
+
+    <div>
+        <button onclick="testFirstLoad()">Test First Load (Should Fetch)</button>
+        <button onclick="testCachedLoad()">Test Cached Load (Should Use Cache)</button>
+        <button onclick="testMultipleDocuments()">Test Multiple Documents</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <h2>Results:</h2>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        const AUTH_TOKEN = 'test-token';
+        const DOCUMENT_ID = '27a82843-3b40-4460-944d-67a2e986a5ed';
+
+        // Simple cache implementation mimicking the service
+        const contentCache = new Map();
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(entry);
+        }
+
+        async function fetchContent(documentId) {
+            const start = performance.now();
+
+            // Check cache first
+            const cached = contentCache.get(documentId);
+            if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+                const elapsed = (performance.now() - start).toFixed(2);
+                log(`✅ Cache hit for ${documentId} (${elapsed}ms)`, 'success');
+                return cached.content;
+            }
+
+            log(`🔄 Fetching content for ${documentId}...`, 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/documents/${documentId}/content`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Update cache
+                contentCache.set(documentId, {
+                    content: data.content,
+                    timestamp: Date.now()
+                });
+
+                const elapsed = (performance.now() - start).toFixed(2);
+                log(`✅ Fetched content successfully (${elapsed}ms)`, 'success');
+
+                return data.content;
+            } catch (error) {
+                log(`❌ Error fetching content: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function testFirstLoad() {
+            log('--- Testing First Load ---', 'info');
+            contentCache.clear(); // Clear cache to simulate first load
+
+            try {
+                const content = await fetchContent(DOCUMENT_ID);
+                log(`📄 Content loaded, has ${Object.keys(content).length} fields`, 'success');
+
+                // Verify content structure
+                const expectedFields = ['text', 'formatted_content', 'raw_text', 'summary'];
+                const hasAllFields = expectedFields.every(field => field in content);
+
+                if (hasAllFields) {
+                    log('✅ Content structure is correct', 'success');
+                } else {
+                    log('⚠️ Content structure missing some fields', 'error');
+                }
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCachedLoad() {
+            log('--- Testing Cached Load ---', 'info');
+
+            try {
+                // First load (might be cached from previous test)
+                const content1 = await fetchContent(DOCUMENT_ID);
+
+                // Second load (should definitely be cached)
+                const content2 = await fetchContent(DOCUMENT_ID);
+
+                // Third load
+                const content3 = await fetchContent(DOCUMENT_ID);
+
+                log('✅ Multiple loads completed, check for cache hits above', 'success');
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMultipleDocuments() {
+            log('--- Testing Multiple Documents ---', 'info');
+
+            // First, let's list available documents
+            try {
+                const response = await fetch(`${API_BASE}/api/documents`, {
+                    headers: {
+                        'Authorization': `Bearer ${AUTH_TOKEN}`
+                    }
+                });
+
+                const data = await response.json();
+                const documents = data.documents || [];
+                log(`Found ${documents.length} documents`, 'info');
+
+                // Test loading first 3 documents
+                const docsToTest = documents.slice(0, 3);
+
+                for (const doc of docsToTest) {
+                    const docId = doc.id || doc.metadata?.document_id;
+                    if (docId) {
+                        await fetchContent(docId);
+                    } else {
+                        log(`⚠️ Document missing ID: ${JSON.stringify(doc)}`, 'error');
+                    }
+                }
+
+                log('✅ Multiple document test completed', 'success');
+
+                // Now test cache by reloading them
+                log('🔄 Testing cache for multiple documents...', 'info');
+
+                for (const doc of docsToTest) {
+                    const docId = doc.id || doc.metadata?.document_id;
+                    if (docId) {
+                        await fetchContent(docId);
+                    } else {
+                        log(`⚠️ Document missing ID: ${JSON.stringify(doc)}`, 'error');
+                    }
+                }
+
+                log('✅ Cache test for multiple documents completed', 'success');
+
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('results').innerHTML = '';
+            log('Log cleared', 'info');
+        }
+
+        // Initial message
+        log('Test page loaded. Use buttons above to test lazy loading functionality.', 'info');
+    </script>
+</body>
+</html>

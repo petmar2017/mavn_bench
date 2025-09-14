@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FileText, Calendar, HardDrive, AlertCircle, Eye, Download, Trash2 } from 'lucide-react';
 import classNames from 'classnames';
+import { formatFileSize, formatLocalDateTime } from '../utils/format';
 import { documentApi } from '../services/api';
 import type { DocumentMessage } from '../services/api';
 import { wsService } from '../services/websocket';
@@ -22,7 +23,17 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
     try {
       const docs = await documentApi.listDocuments();
       // Ensure docs is always an array
-      setDocuments(Array.isArray(docs) ? docs : []);
+      const documentsArray = Array.isArray(docs) ? docs : [];
+
+      // Sort documents by updated_at (or created_at if updated_at doesn't exist) in descending order
+      // Latest documents first
+      const sortedDocs = documentsArray.sort((a, b) => {
+        const dateA = new Date(a.metadata.updated_at || a.metadata.created_at).getTime();
+        const dateB = new Date(b.metadata.updated_at || b.metadata.created_at).getTime();
+        return dateB - dateA; // Descending order (latest first)
+      });
+
+      setDocuments(sortedDocs);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to fetch documents');
       setDocuments([]); // Set empty array on error
@@ -71,29 +82,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
     console.log('Download document:', doc.metadata.document_id);
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const formatDate = (dateString: string) => {
-    // Parse the UTC date from server and convert to local timezone
-    const date = new Date(dateString);
-
-    // Use toLocaleString to properly display date and time in user's timezone
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,  // Use 12-hour format with AM/PM
-      timeZoneName: 'short'  // Optionally show timezone abbreviation
-    });
-  };
+  // Use the centralized formatting functions from utils/format
 
   const getDocumentTypeBadgeClass = (type: string) => {
     const typeMap: Record<string, string> = {
@@ -166,7 +155,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, re
 
                 <div className={styles.metadataItem}>
                   <Calendar size={12} className={styles.metadataIcon} />
-                  <span>{formatDate(doc.metadata.created_at)}</span>
+                  <span>{formatLocalDateTime(doc.metadata.created_at)}</span>
                 </div>
               </div>
 

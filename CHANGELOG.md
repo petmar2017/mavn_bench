@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### UI Improvements and Architecture Updates (2025-09-14)
+- **Frontend UI Restructuring**:
+  - Implemented split-panel layout with 400px left sidebar
+  - Created Bench component for document viewing/editing workspace
+  - Added multi-document tabbed interface
+  - Moved from top navigation to left sidebar with Upload/Documents/Search tabs
+  - Right-side workspace for document viewing and editing
+- **Document Content Lazy-Loading Architecture**:
+  - Separated document metadata from content for performance optimization
+  - Implemented content service layer with 5-minute TTL caching
+  - Added `/api/documents/{id}/content` endpoint for on-demand content fetching
+  - Prevents duplicate requests with concurrent request deduplication
+  - Cache invalidation on document updates
+  - Maintains consistent DocumentMessage structure across the stack
+- **Document Viewer Components**:
+  - MarkdownEditor with edit/preview/split modes
+  - ExcelViewer with AG-Grid integration for spreadsheets
+  - JSONViewer with expandable tree view
+  - Loading and error states for all viewers
+  - Content fetched on-demand when document is opened
+- **Document List Improvements**:
+  - Added sorting by date (latest documents appear first)
+  - Documents sorted by updated_at/created_at in descending order
+  - Improved user experience for finding recent documents
+- **Testing Infrastructure**:
+  - Added Vitest unit tests for document content service
+  - Tests cover caching, concurrent requests, and error handling
+  - 100% test coverage for lazy-loading implementation
+
 ### Critical Fixes and Improvements (2025-09-14)
 - **Removed Chakra UI Completely**:
   - Migrated all components from Chakra UI to plain React with CSS Modules

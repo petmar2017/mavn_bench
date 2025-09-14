@@ -8,7 +8,7 @@
 - **GitHub**: https://github.com/petmar2017/mavn_bench
 - **Python Version**: 3.13+ (MUST use venv for backend)
 - **Node Version**: 18+ (for frontend)
-- **Current Phase**: Phase 2 (Storage Layer) - Phase 1 COMPLETED ✅
+- **Current Phase**: Phase 5 (Frontend Implementation) - Phases 1-4 COMPLETED ✅
 
 ## Frontend Technology Stack
 - **Framework**: React 19 with TypeScript
@@ -19,6 +19,8 @@
 - **HTTP Client**: Axios
 - **WebSocket**: Socket.IO Client
 - **Icons**: Lucide React
+- **Data Grid**: AG-Grid React for spreadsheet functionality
+- **Utility Libraries**: classnames for conditional CSS classes
 
 ### ⚠️ IMPORTANT Frontend Rules
 1. **NO UI Component Libraries**: Do NOT use Chakra UI, Material-UI, Ant Design, or any other component library
@@ -523,44 +525,92 @@ After implementing:
 
 ## Frontend Implementation Guidelines
 
-### Technology Stack
-- **Framework**: React 18+ with TypeScript
-- **UI Library**: Chakra UI v2
-- **State Management**: React Query (TanStack Query)
-- **Build Tool**: Vite
-- **HTTP Client**: Axios
-- **WebSocket**: Socket.io-client
-- **File Upload**: react-dropzone
-- **Icons**: Lucide React
-
 ### Frontend Architecture
 ```
 frontend/
 ├── src/
 │   ├── components/     # Reusable UI components
-│   ├── pages/          # Page components
+│   │   ├── Bench/      # Document viewing/editing workspace
+│   │   ├── Documents/  # Document management
+│   │   ├── Search/     # Search interface
+│   │   └── Upload/     # File upload interface
 │   ├── services/       # API and WebSocket services
 │   ├── hooks/          # Custom React hooks
 │   ├── utils/          # Utility functions
-│   └── types/          # TypeScript type definitions
+│   ├── types/          # TypeScript type definitions
+│   └── styles/         # Global styles and CSS modules
 ```
+
+### UI Layout Structure
+- **Split Panel Design**: 400px left sidebar + flexible right workspace
+- **Left Sidebar**: Upload, Documents, Search tabs
+- **Right Workspace**: Bench component for document viewing/editing
+- **Multi-Document Support**: Tabbed interface for multiple open documents
+
+### Document Content Architecture
+
+#### Lazy-Loading Pattern
+The application uses a lazy-loading pattern for document content to optimize performance:
+
+1. **Separation of Concerns**:
+   - Document metadata is loaded with document lists
+   - Document content is fetched on-demand when needed
+   - Maintains consistent `DocumentMessage` structure across the stack
+
+2. **Content Service Layer**:
+   ```typescript
+   // frontend/src/services/documentContent.ts
+   - Fetches content via `/api/documents/{id}/content` endpoint
+   - Implements 5-minute TTL cache
+   - Handles concurrent request deduplication
+   - Provides cache invalidation on updates
+   ```
+
+3. **Backend Content Endpoint**:
+   ```python
+   # GET /api/documents/{document_id}/content
+   - Returns only content fields (text, formatted_content, raw_text, summary)
+   - Separate from main document CRUD operations
+   - Enables future caching optimizations
+   ```
+
+4. **Component Integration**:
+   - Document viewers fetch content on mount
+   - Loading states during content fetch
+   - Error handling for failed content loads
+   - Cache prevents duplicate requests
 
 ### Component Standards
 - Use functional components with TypeScript
-- Implement proper error boundaries
-- Use Chakra UI theme and components
+- Build with native React and HTML elements (NO UI libraries)
+- Use CSS Modules for component styling
+- Implement proper loading and error states
 - Follow React best practices (hooks, memoization)
 - Implement responsive design
 
+### Document Viewer Components
+- **MarkdownEditor**: Edit/preview modes with split view
+- **ExcelViewer**: AG-Grid integration for spreadsheets
+- **JSONViewer**: Tree view with expand/collapse
+- **PDFViewer**: Display PDF content (extracted text)
+- **DefaultViewer**: Fallback for unsupported types
+
 ### API Integration
 - All API calls through centralized service layer
-- Use React Query for caching and synchronization
+- Document content uses dedicated caching service
 - Handle loading, error, and success states
 - Implement proper error handling and user feedback
+- WebSocket for real-time updates
+
+### Testing Strategy
+- Unit tests with Vitest
+- Mock API responses for component tests
+- Test lazy-loading and caching behavior
+- Achieve 80%+ coverage
 
 ---
 **Project**: Mavn Bench
 **Location**: `/Users/petermager/Downloads/code/mavn_bench`
 **GitHub**: https://github.com/petmar2017/mavn_bench
 **Current Phase**: Phase 5 - Frontend Implementation
-**Next Task**: Complete React frontend with Chakra UI  
+**Architecture**: Split-panel UI with lazy-loaded document content  

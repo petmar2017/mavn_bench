@@ -204,6 +204,51 @@ async def get_document(
         )
 
 
+@router.get("/{document_id}/content")
+async def get_document_content(
+    document_id: str,
+    user: Dict = Depends(get_current_user),
+    service: DocumentService = Depends(get_document_service)
+) -> Dict[str, Any]:
+    """Get document content
+
+    Args:
+        document_id: Document ID
+        user: Current user
+        service: Document service
+
+    Returns:
+        Document content
+
+    Raises:
+        HTTPException: If document not found
+    """
+    with tracer.start_as_current_span("get_document_content") as span:
+        span.set_attribute("document.id", document_id)
+        span.set_attribute("user.id", user["user_id"])
+
+        document = await service.get_document(document_id, user["user_id"])
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document {document_id} not found"
+            )
+
+        # Extract content from document
+        content_data = {
+            "document_id": document_id,
+            "content": {
+                "text": getattr(document.content, 'text', None) if document.content else None,
+                "formatted_content": getattr(document.content, 'formatted_content', None) if document.content else None,
+                "raw_text": getattr(document.content, 'raw_text', None) if document.content else None,
+                "summary": document.metadata.summary if document.metadata else None
+            }
+        }
+
+        return content_data
+
+
 @router.put("/{document_id}", response_model=DocumentResponse)
 async def update_document(
     document_id: str,
