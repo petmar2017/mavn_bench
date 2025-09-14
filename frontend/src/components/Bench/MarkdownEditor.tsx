@@ -4,14 +4,17 @@ import type { DocumentMessage } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
 import { ViewerTabBar } from './ViewerTabBar';
 import type { ViewerTab } from './ViewerTabBar';
-import { SummaryEditor } from './SummaryEditor';
-import { MarkdownContentEditor } from './MarkdownContentEditor';
+import { ViewerToolbar } from './ViewerToolbar';
+import { SimpleMarkdownEditor } from './SimpleMarkdownEditor';
 import styles from './MarkdownEditor.module.css';
 
 interface MarkdownEditorProps {
   document: DocumentMessage;
   onContentChange?: () => void;
   viewMode?: 'edit' | 'preview' | 'split';
+  onDelete?: () => void;
+  onDownload?: () => void;
+  onHistory?: () => void;
 }
 
 type TabMode = 'summary' | 'content';
@@ -20,6 +23,9 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   document,
   onContentChange,
   viewMode: initialViewMode,
+  onDelete,
+  onDownload,
+  onHistory,
 }) => {
   const [content, setContent] = useState('');
   const [summary, setSummary] = useState('');
@@ -100,21 +106,37 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         activeTab={tabMode}
         onTabChange={(tabId) => setTabMode(tabId as TabMode)}
       />
+      <ViewerToolbar
+        documentId={document.metadata.document_id}
+        isDeleted={document.metadata.deleted}
+        onDelete={onDelete}
+        onDownload={onDownload}
+        onHistory={onHistory}
+      />
 
       {tabMode === 'summary' ? (
-        <SummaryEditor
+        <SimpleMarkdownEditor
           documentId={document.metadata.document_id}
-          summary={summary}
+          content={summary}
+          contentType="summary"
+          label="Document Summary"
           onSave={(newSummary) => {
             setSummary(newSummary);
             documentContentService.clearCache(document.metadata.document_id);
           }}
         />
       ) : (
-        <MarkdownContentEditor
+        <SimpleMarkdownEditor
+          documentId={document.metadata.document_id}
           content={content}
-          onChange={handleContentChange}
-          isModified={isModified}
+          contentType="content"
+          label="Document Content"
+          onSave={(newContent) => {
+            setContent(newContent);
+            setOriginalContent(newContent);
+            setIsModified(false);
+            documentContentService.clearCache(document.metadata.document_id);
+          }}
         />
       )}
     </div>

@@ -32,6 +32,7 @@ function AppContent() {
   const [toasts, setToasts] = useState<Array<{ id: string; title: string; description: string; type: string }>>([]);
   const [versionHistoryDocumentId, setVersionHistoryDocumentId] = useState<string | null>(null);
   const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
+  const uploadQueueRef = useRef<UploadItem[]>([]);
   const benchRef = useRef<any>(null);
 
   // Search state - persists across tab switches
@@ -91,7 +92,7 @@ function AppContent() {
     const unsubQueue = wsService.on('queue:job_progress', (data: any) => {
       // Update upload item progress
       if (data.job_id) {
-        const uploadItem = uploadQueue.find(item => item.jobId === data.job_id);
+        const uploadItem = uploadQueueRef.current.find(item => item.jobId === data.job_id);
         if (uploadItem) {
           updateUploadItem(uploadItem.id, {
             progress: data.progress,
@@ -104,7 +105,7 @@ function AppContent() {
     const unsubComplete = wsService.on('queue:job_completed', (data: any) => {
       // Mark upload as completed
       if (data.job_id) {
-        const uploadItem = uploadQueue.find(item => item.jobId === data.job_id);
+        const uploadItem = uploadQueueRef.current.find(item => item.jobId === data.job_id);
         if (uploadItem) {
           updateUploadItem(uploadItem.id, {
             status: 'completed',
@@ -119,7 +120,7 @@ function AppContent() {
     const unsubFailed = wsService.on('queue:job_failed', (data: any) => {
       // Mark upload as failed
       if (data.job_id) {
-        const uploadItem = uploadQueue.find(item => item.jobId === data.job_id);
+        const uploadItem = uploadQueueRef.current.find(item => item.jobId === data.job_id);
         if (uploadItem) {
           updateUploadItem(uploadItem.id, {
             status: 'error',
@@ -136,7 +137,7 @@ function AppContent() {
       unsubFailed();
       wsService.disconnect();
     };
-  }, [uploadQueue]);
+  }, []); // Empty dependency array - only connect once on mount
 
   // Upload queue management functions
   const addToUploadQueue = (file: File): string => {
@@ -155,6 +156,11 @@ function AppContent() {
     logger.info('Added file to upload queue', { fileName: file.name, itemId });
     return itemId;
   };
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    uploadQueueRef.current = uploadQueue;
+  }, [uploadQueue]);
 
   const updateUploadItem = (id: string, updates: Partial<UploadItem>) => {
     setUploadQueue(prev => prev.map(item =>
@@ -187,9 +193,12 @@ function AppContent() {
         message: `${document.metadata.name} has been uploaded`,
         type: 'success'
       });
-      setRefreshDocuments(prev => prev + 1);
-      // Auto-switch to Documents tab after successful upload
+      // Auto-switch to Documents tab FIRST
       setActiveTab('documents');
+      // Then trigger refresh after a small delay to ensure component mounts
+      setTimeout(() => {
+        setRefreshDocuments(prev => prev + 1);
+      }, 100);
       // Auto-select the newly uploaded document
       setSelectedDocument(document);
     } else {

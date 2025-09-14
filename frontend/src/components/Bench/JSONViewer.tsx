@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Copy, Download, Loader } from 'lucide-react';
+import { ChevronRight, ChevronDown, Copy, Download, Loader, FileJson, Code } from 'lucide-react';
 import classNames from 'classnames';
 import type { DocumentMessage } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
+import { ViewerTabBar } from './ViewerTabBar';
+import type { ViewerTab } from './ViewerTabBar';
+import { ViewerToolbar } from './ViewerToolbar';
 import styles from './JSONViewer.module.css';
 
 interface JSONViewerProps {
   document: DocumentMessage;
+  onDelete?: () => void;
+  onDownload?: () => void;
+  onHistory?: () => void;
 }
+
+type ViewMode = 'tree' | 'raw';
 
 interface TreeNodeProps {
   keyName: string;
@@ -101,9 +109,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({ keyName, value, level = 0, isLast =
   );
 };
 
-export const JSONViewer: React.FC<JSONViewerProps> = ({ document }) => {
+export const JSONViewer: React.FC<JSONViewerProps> = ({ document, onDelete, onDownload, onHistory }) => {
   const [jsonData, setJsonData] = useState<any>(null);
-  const [rawView, setRawView] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -148,7 +156,7 @@ export const JSONViewer: React.FC<JSONViewerProps> = ({ document }) => {
     navigator.clipboard.writeText(text);
   };
 
-  const downloadJSON = () => {
+  const handleDownloadJSON = () => {
     const text = JSON.stringify(jsonData, null, 2);
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -158,6 +166,11 @@ export const JSONViewer: React.FC<JSONViewerProps> = ({ document }) => {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const tabs: ViewerTab[] = [
+    { id: 'tree', label: 'Tree View', icon: <FileJson size={16} /> },
+    { id: 'raw', label: 'Raw JSON', icon: <Code size={16} /> },
+  ];
 
   if (isLoading) {
     return (
@@ -183,42 +196,29 @@ export const JSONViewer: React.FC<JSONViewerProps> = ({ document }) => {
 
   return (
     <div className={styles.jsonViewer}>
-      <div className={styles.jsonToolbar}>
-        <div className={styles.viewToggle}>
-          <button
-            className={classNames(styles.toggleButton, { [styles.active]: !rawView })}
-            onClick={() => setRawView(false)}
-          >
-            Tree View
-          </button>
-          <button
-            className={classNames(styles.toggleButton, { [styles.active]: rawView })}
-            onClick={() => setRawView(true)}
-          >
-            Raw JSON
-          </button>
-        </div>
-
-        <div className={styles.jsonActions}>
-          <button
-            className={styles.actionButton}
-            onClick={copyToClipboard}
-            title="Copy to clipboard"
-          >
-            <Copy size={16} />
-          </button>
-          <button
-            className={styles.actionButton}
-            onClick={downloadJSON}
-            title="Download JSON"
-          >
-            <Download size={16} />
-          </button>
-        </div>
-      </div>
+      <ViewerTabBar
+        tabs={tabs}
+        activeTab={viewMode}
+        onTabChange={(tabId) => setViewMode(tabId as ViewMode)}
+      />
+      <ViewerToolbar
+        documentId={document.metadata.document_id}
+        isDeleted={document.metadata.deleted}
+        onDelete={onDelete}
+        onDownload={onDownload || handleDownloadJSON}
+        onHistory={onHistory}
+      >
+        <button
+          className={styles.actionButton}
+          onClick={copyToClipboard}
+          title="Copy to clipboard"
+        >
+          <Copy size={16} />
+        </button>
+      </ViewerToolbar>
 
       <div className={styles.jsonContent}>
-        {rawView ? (
+        {viewMode === 'raw' ? (
           <pre className={styles.rawJson}>
             {JSON.stringify(jsonData, null, 2)}
           </pre>

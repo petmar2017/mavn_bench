@@ -65,6 +65,13 @@ class TelemetryConfig(BaseSettings):
     otlp_endpoint: str = Field(default="http://localhost:4317", env="OTEL_EXPORTER_OTLP_ENDPOINT")
     jaeger_endpoint: str = Field(default="http://localhost:14268/api/traces", env="JAEGER_ENDPOINT")
 
+class PaginationConfig(BaseSettings):
+    """Pagination settings"""
+    default_limit: int = Field(default=20, env="PAGINATION_DEFAULT_LIMIT")
+    max_limit: int = Field(default=100, env="PAGINATION_MAX_LIMIT")
+    default_sort_by: str = Field(default="updated_at", env="PAGINATION_DEFAULT_SORT_BY")
+    default_sort_order: str = Field(default="desc", env="PAGINATION_DEFAULT_SORT_ORDER")
+
 class Settings(BaseSettings):
     app_name: str = Field(default="Mavn Bench", env="APP_NAME")
     app_version: str = Field(default="1.0.0", env="APP_VERSION")
@@ -77,6 +84,7 @@ class Settings(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
+    pagination: PaginationConfig = Field(default_factory=PaginationConfig)
     
     class Config:
         env_file = ".env"

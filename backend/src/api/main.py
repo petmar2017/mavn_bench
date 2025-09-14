@@ -3,6 +3,8 @@
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 import os
+import shutil
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +34,25 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
     logger.info("Starting Mavn Bench API")
+
+    # Clean up temp directory on startup
+    project_root = Path(__file__).parent.parent.parent.parent
+    temp_dir = project_root / "temp"
+    if temp_dir.exists():
+        # Remove all files in temp directory
+        for item in temp_dir.iterdir():
+            try:
+                if item.is_file():
+                    item.unlink()
+                elif item.is_dir():
+                    shutil.rmtree(item)
+            except Exception as e:
+                logger.warning(f"Failed to clean temp file {item}: {e}")
+        logger.info(f"Cleaned temp directory: {temp_dir}")
+    else:
+        # Create temp directory if it doesn't exist
+        temp_dir.mkdir(exist_ok=True)
+        logger.info(f"Created temp directory: {temp_dir}")
 
     # Setup OpenTelemetry
     if settings.telemetry.enabled:

@@ -77,6 +77,15 @@ class StorageAdapter(ABC):
         pass
 
     @abstractmethod
+    async def list_all(self) -> List[str]:
+        """List all document IDs in storage
+
+        Returns:
+            List of all document IDs
+        """
+        pass
+
+    @abstractmethod
     async def list_documents(
         self,
         user_id: Optional[str] = None,

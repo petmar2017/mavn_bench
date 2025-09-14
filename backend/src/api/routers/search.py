@@ -91,7 +91,7 @@ async def vector_search(
                         "updated_at": str(metadata.updated_at),
                         "user_id": metadata.created_user,
                         "tags": metadata.tags or [],
-                        "processing_status": metadata.processing_stage.value if metadata.processing_stage else "completed"
+                        "processing_status": metadata.processing_status  # Use the @property
                     },
                     "highlights": [f"...{request.query}..."]
                 })
@@ -128,7 +128,7 @@ async def vector_search(
                             "updated_at": str(doc.updated_at),
                             "user_id": doc.created_user,
                             "tags": doc.tags if doc.tags else [],
-                            "processing_status": doc.processing_stage.value if doc.processing_stage else "completed"
+                            "processing_status": doc.processing_status  # Use the @property
                         },
                         "highlights": [f"...{request.query}..."]
                     })
@@ -233,7 +233,7 @@ async def fulltext_search(
                         "updated_at": str(doc.updated_at),
                         "user_id": doc.created_user,
                         "tags": doc.tags if doc.tags else [],
-                        "processing_status": doc.processing_stage.value if doc.processing_stage else "completed"
+                        "processing_status": doc.processing_status  # Use the @property
                     },
                     "highlights": [f"...{request.query}..."]
                 })
@@ -286,7 +286,7 @@ async def graph_search(
                         "updated_at": str(doc.updated_at),
                         "user_id": doc.created_user,
                         "tags": doc.tags if doc.tags else [],
-                        "processing_status": doc.processing_stage.value if doc.processing_stage else "completed"
+                        "processing_status": doc.processing_status  # Use the @property
                     },
                     "highlights": [f"...{request.query}..."]
                 })
@@ -341,7 +341,7 @@ async def hybrid_search(
                         "updated_at": str(doc.updated_at),
                         "user_id": doc.created_user,
                         "tags": doc.tags if doc.tags else [],
-                        "processing_status": doc.processing_stage.value if doc.processing_stage else "completed"
+                        "processing_status": doc.processing_status  # Use the @property
                     },
                     "highlights": [f"...{request.query}..."]
                 })

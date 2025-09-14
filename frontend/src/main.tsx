@@ -5,6 +5,8 @@ import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 // Initialize logger to register global error handlers
 import './services/logging'
+// Initialize debug helper for troubleshooting
+import './utils/debug'
 
 // Note: Global error handlers are registered in services/logging.ts
 // to ensure they're initialized before any errors occur

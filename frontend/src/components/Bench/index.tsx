@@ -1,5 +1,5 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
-import { X, Save, Download, History, Maximize2, Minimize2, Trash2 } from 'lucide-react';
+import { X, Save, Maximize2, Minimize2 } from 'lucide-react';
 import classNames from 'classnames';
 import { DocumentBench, type DocumentBenchRef } from './DocumentBench';
 import { DocumentTabs } from './DocumentTabs';
@@ -154,44 +154,6 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
             </button>
           )}
 
-          {activeDocument && (
-            <button
-              className={styles.actionButton}
-              onClick={() => {
-                const isDeleted = activeDocument.metadata.deleted;
-                const isHardDelete = isDeleted;
-                if (isHardDelete && !confirm('Permanently delete this document? This cannot be undone.')) {
-                  return;
-                }
-                handleDeleteDocument(activeDocumentId!, isHardDelete);
-              }}
-              title={activeDocument.metadata.deleted ? "Permanently delete document" : "Delete document"}
-            >
-              <Trash2 size={18} />
-            </button>
-          )}
-
-          <button
-            className={styles.actionButton}
-            onClick={() => logger.info('Download clicked')}
-            title="Download document"
-          >
-            <Download size={18} />
-          </button>
-
-          <button
-            className={styles.actionButton}
-            onClick={() => {
-              if (activeDocumentId && onHistoryClick) {
-                onHistoryClick(activeDocumentId);
-                logger.info('Version history clicked', { documentId: activeDocumentId });
-              }
-            }}
-            title="Version history"
-          >
-            <History size={18} />
-          </button>
-
           <button
             className={styles.actionButton}
             onClick={() => setIsFullscreen(!isFullscreen)}
@@ -208,6 +170,21 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
             ref={documentBenchRef}
             document={activeDocument}
             onDocumentChange={() => handleDocumentChange(activeDocumentId!)}
+            onDelete={() => {
+              const isDeleted = activeDocument.metadata.deleted;
+              const isHardDelete = isDeleted;
+              if (isHardDelete && !confirm('Permanently delete this document? This cannot be undone.')) {
+                return;
+              }
+              handleDeleteDocument(activeDocumentId!, isHardDelete);
+            }}
+            onDownload={() => logger.info('Download clicked')}
+            onHistory={() => {
+              if (activeDocumentId && onHistoryClick) {
+                onHistoryClick(activeDocumentId);
+                logger.info('Version history clicked', { documentId: activeDocumentId });
+              }
+            }}
           />
         )}
       </div>

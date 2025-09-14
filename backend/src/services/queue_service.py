@@ -312,21 +312,14 @@ class QueueService(BaseService):
                 job.progress = 30
                 await self._notify_job_progress(job)
 
-                # Validate and potentially re-extract with LLM if quality is poor
-                validation_result = await pdf_service.validate_and_extract_pdf(
-                    job.file_path,
-                    markdown_content
-                )
+                # Skip LLM validation for now - it's causing processing to hang
+                # TODO: Re-enable once LLM service is properly configured
+                formatted_content = markdown_content
+                raw_text = markdown_content
                 job.progress = 50
                 await self._notify_job_progress(job)
 
-                if validation_result.get("needs_reprocessing"):
-                    logger.info(f"PDF extraction was poor quality, using LLM-improved version")
-                    formatted_content = validation_result["improved_extraction"]
-                    raw_text = validation_result["improved_extraction"]
-                else:
-                    formatted_content = markdown_content
-                    raw_text = markdown_content
+                logger.info(f"PDF processed without LLM validation: {job.document_id}")
 
             elif job.file_type in [DocumentType.WORD.value, DocumentType.TEXT.value]:
                 # For Word and text files, extract text and convert to markdown

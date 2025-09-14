@@ -416,6 +416,30 @@ class RedisStorage(StorageAdapter):
                 self.logger.error(f"Failed to revert document in Redis: {str(e)}")
                 raise StorageError(f"Redis revert failed: {str(e)}") from e
 
+    async def list_all(self) -> List[str]:
+        """List all document IDs in storage
+
+        Returns:
+            List of all document IDs
+        """
+        with self.traced_operation("list_all"):
+            try:
+                await self._ensure_connected()
+
+                # Get all document IDs from the sorted set
+                list_key = self._get_document_list_key()
+                documents = await self.redis_client.zrange(list_key, 0, -1)
+
+                # Decode document IDs
+                document_ids = [doc_id.decode() if isinstance(doc_id, bytes) else doc_id for doc_id in documents]
+
+                self.logger.info(f"Found {len(document_ids)} documents in Redis storage")
+                return document_ids
+
+            except RedisError as e:
+                self.logger.error(f"Failed to list documents in Redis: {str(e)}")
+                raise StorageError(f"Failed to list documents: {str(e)}") from e
+
     async def health_check(self) -> Dict[str, Any]:
         """Check Redis storage health"""
         with self.traced_operation("health_check"):

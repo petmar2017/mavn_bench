@@ -310,6 +310,8 @@ class DocumentService(BaseService):
         ):
             try:
                 # Get documents from storage
+                self.logger.info(f"[DocumentService] list_documents called - user_id: {user_id}, type: {document_type}, limit: {limit}, offset: {offset}, include_deleted: {include_deleted}")
+
                 documents = await self.storage.list_documents(
                     user_id=user_id,
                     document_type=document_type,
@@ -317,14 +319,18 @@ class DocumentService(BaseService):
                     offset=offset
                 )
 
+                self.logger.info(f"[DocumentService] Retrieved {len(documents)} documents from storage")
+
                 # Filter out deleted documents if requested
                 if not include_deleted:
+                    original_count = len(documents)
                     documents = [
                         doc for doc in documents
                         if not getattr(doc, "deleted", False)
                     ]
+                    self.logger.info(f"[DocumentService] After filtering deleted: {original_count} -> {len(documents)} documents")
 
-                self.logger.info(f"Listed {len(documents)} documents")
+                self.logger.info(f"[DocumentService] Returning {len(documents)} documents")
                 return documents
 
             except Exception as e:

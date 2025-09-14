@@ -6,13 +6,16 @@ import { documentContentService } from '../../services/documentContent';
 import { logger } from '../../services/logging';
 import { ViewerTabBar } from './ViewerTabBar';
 import type { ViewerTab } from './ViewerTabBar';
-import { SummaryEditor } from './SummaryEditor';
-import { MarkdownContentEditor } from './MarkdownContentEditor';
+import { ViewerToolbar } from './ViewerToolbar';
+import { SimpleMarkdownEditor } from './SimpleMarkdownEditor';
 import styles from './PDFViewer.module.css';
 
 interface PDFViewerProps {
   document: DocumentMessage;
   onContentChange?: () => void;
+  onDelete?: () => void;
+  onDownload?: () => void;
+  onHistory?: () => void;
 }
 
 export interface PDFViewerRef {
@@ -23,7 +26,7 @@ export interface PDFViewerRef {
 type ViewMode = 'summary' | 'transcript' | 'original';
 
 export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
-  ({ document, onContentChange }, ref) => {
+  ({ document, onContentChange, onDelete, onDownload, onHistory }, ref) => {
     const [viewMode, setViewMode] = useState<ViewMode>('summary');
     const [transcript, setTranscript] = useState('');
     const [originalTranscript, setOriginalTranscript] = useState('');
@@ -189,24 +192,35 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
           activeTab={viewMode}
           onTabChange={(tabId) => setViewMode(tabId as ViewMode)}
         />
-        <div className={styles.editorToolbar}>
-
-          <div className={styles.editorActions}>
-            {saveSuccess && (
-              <span className={styles.saveSuccess}>
-                <CheckCircle size={16} />
-                Saved
-              </span>
-            )}
-          </div>
-        </div>
+        <ViewerToolbar
+          documentId={document.metadata.document_id}
+          isDeleted={document.metadata.deleted}
+          onDelete={onDelete}
+          onDownload={onDownload}
+          onHistory={onHistory}
+        >
+          {saveSuccess && (
+            <span className={styles.saveSuccess}>
+              <CheckCircle size={16} />
+              Saved
+            </span>
+          )}
+        </ViewerToolbar>
 
         <div className={styles.editorContainer}>
           {viewMode === 'transcript' && (
-            <MarkdownContentEditor
+            <SimpleMarkdownEditor
+              documentId={document.metadata.document_id}
               content={transcript}
-              onChange={handleTranscriptChange}
-              isModified={isModified}
+              contentType="transcript"
+              label="Document Transcript"
+              onSave={(newTranscript) => {
+                setTranscript(newTranscript);
+                setOriginalTranscript(newTranscript);
+                setIsModified(false);
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+              }}
             />
           )}
 
@@ -232,9 +246,11 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
           )}
 
           {viewMode === 'summary' && (
-            <SummaryEditor
+            <SimpleMarkdownEditor
               documentId={document.metadata.document_id}
-              summary={summary}
+              content={summary}
+              contentType="summary"
+              label="Document Summary"
               onSave={(newSummary) => {
                 setSummary(newSummary);
                 setOriginalSummary(newSummary);

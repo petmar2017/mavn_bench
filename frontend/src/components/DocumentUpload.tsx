@@ -37,39 +37,90 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   ) || false;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
+    const timestamp = new Date().toISOString();
+    logger.info(`[UPLOAD ${timestamp}] onDrop called`, {
+      acceptedFiles: acceptedFiles.length,
+      hasOnFileSelect: !!onFileSelect,
+      uploadQueueLength: uploadQueue?.length || 0,
+      hasActiveUploads
+    });
+
+    if (acceptedFiles.length === 0) {
+      logger.warn(`[UPLOAD ${timestamp}] No files accepted - check file types`);
+      return;
+    }
 
     // First, add all files to the queue immediately (in pending state)
     const uploadIds: Array<{ file: File; uploadId: string | null }> = [];
 
     for (const file of acceptedFiles) {
-      logger.info('Adding file to upload queue', {
+      logger.info(`[UPLOAD ${timestamp}] Adding file to upload queue`, {
         fileName: file.name,
         fileSize: file.size,
-        fileType: file.type || 'unknown'
+        fileType: file.type || 'unknown',
+        lastModified: file.lastModified
       });
 
       // Add to queue and get the upload ID - files start in 'pending' state by default
       const uploadId = onFileSelect ? onFileSelect(file) : null;
       uploadIds.push({ file, uploadId });
+
+      logger.debug(`[UPLOAD ${timestamp}] File queue entry created`, {
+        fileName: file.name,
+        uploadId,
+        hasOnFileSelect: !!onFileSelect
+      });
     }
+
+    logger.info(`[UPLOAD ${timestamp}] All files added to queue, starting processing`, {
+      totalFiles: uploadIds.length,
+      queueSnapshot: uploadIds.map(({ file, uploadId }) => ({
+        name: file.name,
+        uploadId
+      }))
+    });
 
     // Process files asynchronously after they're all in the queue
     // Use setTimeout to ensure UI updates first
     setTimeout(() => {
+      logger.debug(`[UPLOAD ${timestamp}] Starting sequential upload processing`);
       processUploadsSequentially(uploadIds);
     }, 100);
-  }, [onFileSelect]);
+  }, [onFileSelect, uploadQueue, hasActiveUploads]);
 
   // Separate function to process uploads sequentially
   const processUploadsSequentially = useCallback(async (uploadIds: Array<{ file: File; uploadId: string | null }>) => {
+    const processTimestamp = new Date().toISOString();
+    logger.info(`[UPLOAD-PROCESS ${processTimestamp}] Starting sequential processing`, {
+      totalFiles: uploadIds.length,
+      files: uploadIds.map(({ file, uploadId }) => ({ name: file.name, uploadId }))
+    });
+
     for (const { file, uploadId } of uploadIds) {
+      const fileTimestamp = new Date().toISOString();
+      logger.info(`[UPLOAD-FILE ${fileTimestamp}] Processing file: ${file.name}`, {
+        fileName: file.name,
+        fileSize: file.size,
+        uploadId,
+        hasUpdateUploadItem: !!updateUploadItem
+      });
+
       // Wait a moment before starting each upload to show pending state
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Update status to uploading
       if (uploadId && updateUploadItem) {
+        logger.debug(`[UPLOAD-FILE ${fileTimestamp}] Updating status to uploading`, {
+          fileName: file.name,
+          uploadId
+        });
         updateUploadItem(uploadId, { status: 'uploading', progress: 0 });
+      } else {
+        logger.warn(`[UPLOAD-FILE ${fileTimestamp}] Cannot update upload item - missing uploadId or updateUploadItem`, {
+          fileName: file.name,
+          hasUploadId: !!uploadId,
+          hasUpdateUploadItem: !!updateUploadItem
+        });
       }
 
       const formData = new FormData();
@@ -77,56 +128,110 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       formData.append('name', file.name);
       formData.append('type', file.type || 'application/octet-stream');
 
+      logger.debug(`[UPLOAD-FILE ${fileTimestamp}] FormData prepared`, {
+        fileName: file.name,
+        formDataEntries: Array.from(formData.entries()).map(([key, value]) => ({
+          key,
+          valueType: typeof value,
+          valueSize: value instanceof File ? value.size : (value as string).length
+        }))
+      });
+
       // Don't set global uploading state for individual files
       // The queue will show individual file status
       try {
         // Simulate progress updates with delays
         if (uploadId && updateUploadItem) {
-          setTimeout(() => updateUploadItem(uploadId, { progress: 20 }), 200);
-          setTimeout(() => updateUploadItem(uploadId, { progress: 40 }), 400);
-          setTimeout(() => updateUploadItem(uploadId, { progress: 60 }), 600);
+          setTimeout(() => {
+            logger.debug(`[UPLOAD-FILE ${fileTimestamp}] Progress update: 20%`, { fileName: file.name });
+            updateUploadItem(uploadId, { progress: 20 });
+          }, 200);
+          setTimeout(() => {
+            logger.debug(`[UPLOAD-FILE ${fileTimestamp}] Progress update: 40%`, { fileName: file.name });
+            updateUploadItem(uploadId, { progress: 40 });
+          }, 400);
+          setTimeout(() => {
+            logger.debug(`[UPLOAD-FILE ${fileTimestamp}] Progress update: 60%`, { fileName: file.name });
+            updateUploadItem(uploadId, { progress: 60 });
+          }, 600);
         }
+
+        logger.info(`[UPLOAD-API ${fileTimestamp}] Making API call to createDocument`, {
+          fileName: file.name,
+          fileSize: file.size,
+          contentType: file.type
+        });
 
         const response = await documentApi.createDocument(formData);
 
+        logger.info(`[UPLOAD-API ${fileTimestamp}] API response received`, {
+          fileName: file.name,
+          hasResponse: !!response,
+          responseId: response?.id,
+          responseJobId: response?.job_id,
+          responseType: typeof response,
+          responseKeys: response ? Object.keys(response) : []
+        });
+
         // Check if response is valid
         if (!response || !response.id) {
-          throw new Error('Invalid response from server');
+          const error = new Error('Invalid response from server');
+          logger.error(`[UPLOAD-API ${fileTimestamp}] Invalid server response`, {
+            fileName: file.name,
+            response,
+            hasResponse: !!response,
+            responseId: response?.id
+          });
+          throw error;
         }
 
         // Check if we have a job_id (async processing)
         if (response.job_id) {
           // Async processing - update with job info
-          if (uploadId && updateUploadItem) {
-            updateUploadItem(uploadId, {
-              status: 'processing',
-              progress: 0,
-              documentId: response.id,
-              jobId: response.job_id,
-              queuePosition: response.queue_position
-            });
-          }
-
-          logger.info('File queued for processing', {
-            fileName: file.name,
+          const updateData = {
+            status: 'processing',
+            progress: 0,
             documentId: response.id,
             jobId: response.job_id,
             queuePosition: response.queue_position
+          };
+
+          logger.info(`[UPLOAD-ASYNC ${fileTimestamp}] File queued for async processing`, {
+            fileName: file.name,
+            documentId: response.id,
+            jobId: response.job_id,
+            queuePosition: response.queue_position,
+            uploadId
           });
-        } else {
-          // Sync processing (fallback) - mark as completed
+
           if (uploadId && updateUploadItem) {
-            updateUploadItem(uploadId, {
-              status: 'completed',
-              progress: 100,
-              documentId: response.id
+            updateUploadItem(uploadId, updateData);
+            logger.debug(`[UPLOAD-ASYNC ${fileTimestamp}] Upload item updated with async processing info`, {
+              fileName: file.name,
+              updateData
             });
           }
-
-          logger.info('File uploaded successfully', {
-            fileName: file.name,
+        } else {
+          // Sync processing (fallback) - mark as completed
+          const updateData = {
+            status: 'completed',
+            progress: 100,
             documentId: response.id
+          };
+
+          logger.info(`[UPLOAD-SYNC ${fileTimestamp}] File uploaded successfully (sync processing)`, {
+            fileName: file.name,
+            documentId: response.id,
+            uploadId
           });
+
+          if (uploadId && updateUploadItem) {
+            updateUploadItem(uploadId, updateData);
+            logger.debug(`[UPLOAD-SYNC ${fileTimestamp}] Upload item updated with completion`, {
+              fileName: file.name,
+              updateData
+            });
+          }
         }
 
         // Only show success state if this was the last file in a batch
@@ -134,32 +239,62 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           item.status === 'pending' || item.status === 'uploading' || item.status === 'processing'
         ).length || 0;
 
+        logger.debug(`[UPLOAD-STATUS ${fileTimestamp}] Checking batch completion`, {
+          fileName: file.name,
+          remainingUploads,
+          uploadQueueLength: uploadQueue?.length || 0
+        });
+
         if (remainingUploads <= 1) { // This file plus any remaining
+          logger.info(`[UPLOAD-STATUS ${fileTimestamp}] Batch upload completed - showing success state`, {
+            fileName: file.name,
+            remainingUploads
+          });
           setUploadState({ isUploading: false, error: null, success: true });
           // Reset success state after 3 seconds
           setTimeout(() => {
+            logger.debug(`[UPLOAD-STATUS ${fileTimestamp}] Resetting success state`);
             setUploadState(prev => ({ ...prev, success: false }));
           }, 3000);
         }
 
         // Call the success callback with upload ID
-        onUploadSuccess?.(response, uploadId || undefined);
+        if (onUploadSuccess) {
+          logger.debug(`[UPLOAD-CALLBACK ${fileTimestamp}] Calling onUploadSuccess callback`, {
+            fileName: file.name,
+            documentId: response.id,
+            uploadId
+          });
+          onUploadSuccess(response, uploadId || undefined);
+        } else {
+          logger.debug(`[UPLOAD-CALLBACK ${fileTimestamp}] No onUploadSuccess callback provided`);
+        }
       } catch (error: any) {
         const errorMessage = error.response?.data?.detail || 'Upload failed. Please try again.';
 
         // Log the error with full context
         logApiError('/api/documents', error);
-        logger.error('File upload failed', {
+        logger.error(`[UPLOAD-ERROR ${fileTimestamp}] File upload failed`, {
           fileName: file.name,
           errorMessage,
-          statusCode: error.response?.status
+          statusCode: error.response?.status,
+          errorType: error.name,
+          errorStack: error.stack,
+          uploadId,
+          hasResponse: !!error.response,
+          responseData: error.response?.data
         });
 
         // Update queue item with error
         if (uploadId && updateUploadItem) {
-          updateUploadItem(uploadId, {
+          const errorData = {
             status: 'error',
             error: errorMessage
+          };
+          updateUploadItem(uploadId, errorData);
+          logger.debug(`[UPLOAD-ERROR ${fileTimestamp}] Upload item updated with error`, {
+            fileName: file.name,
+            errorData
           });
         }
 
@@ -168,7 +303,17 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           item.id !== uploadId && (item.status === 'uploading' || item.status === 'processing')
         ).length || 0;
 
+        logger.debug(`[UPLOAD-ERROR ${fileTimestamp}] Checking if should show global error state`, {
+          fileName: file.name,
+          otherActiveUploads,
+          uploadId
+        });
+
         if (otherActiveUploads === 0) {
+          logger.info(`[UPLOAD-ERROR ${fileTimestamp}] Setting global error state - no other active uploads`, {
+            fileName: file.name,
+            errorMessage
+          });
           setUploadState({
             isUploading: false,
             error: errorMessage,
@@ -177,6 +322,11 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
         }
       }
     }
+
+    logger.info(`[UPLOAD-PROCESS ${processTimestamp}] Sequential processing completed`, {
+      totalFiles: uploadIds.length,
+      processedFiles: uploadIds.map(({ file }) => file.name)
+    });
   }, [onUploadSuccess, updateUploadItem, uploadQueue]);
 
   const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({

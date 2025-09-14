@@ -436,3 +436,39 @@
   background: rgba(104, 211, 145, 0.1);
   color: #68d391;
 }
+
+/* Infinite scroll indicators */
+.loadingMore {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  color: var(--color-text-secondary, #718096);
+  font-size: 0.875rem;
+}
+
+.loadingMore .spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-width: 2px;
+}
+
+.endOfList {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem;
+  color: var(--color-text-muted, #a0aec0);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Dark mode support for infinite scroll */
+:global(.dark) .loadingMore {
+  color: #a0aec0;
+}
+
+:global(.dark) .endOfList {
+  color: #718096;
+}

@@ -11,6 +11,9 @@ import styles from './Bench.module.css';
 interface DocumentBenchProps {
   document: DocumentMessage;
   onDocumentChange?: () => void;
+  onDelete?: () => void;
+  onDownload?: () => void;
+  onHistory?: () => void;
 }
 
 export interface DocumentBenchRef {
@@ -19,7 +22,7 @@ export interface DocumentBenchRef {
 }
 
 export const DocumentBench = forwardRef<DocumentBenchRef, DocumentBenchProps>((
-  { document, onDocumentChange },
+  { document, onDocumentChange, onDelete, onDownload, onHistory },
   ref
 ) => {
   const textEditorRef = useRef<TextEditorRef>(null);
@@ -71,6 +74,9 @@ export const DocumentBench = forwardRef<DocumentBenchRef, DocumentBenchProps>((
         <MarkdownEditor
           document={document}
           onContentChange={onDocumentChange}
+          onDelete={onDelete}
+          onDownload={onDownload}
+          onHistory={onHistory}
         />
       );
 
@@ -88,6 +94,9 @@ export const DocumentBench = forwardRef<DocumentBenchRef, DocumentBenchProps>((
       return (
         <JSONViewer
           document={document}
+          onDelete={onDelete}
+          onDownload={onDownload}
+          onHistory={onHistory}
         />
       );
 
@@ -97,6 +106,9 @@ export const DocumentBench = forwardRef<DocumentBenchRef, DocumentBenchProps>((
           ref={pdfViewerRef}
           document={document}
           onContentChange={onDocumentChange}
+          onDelete={onDelete}
+          onDownload={onDownload}
+          onHistory={onHistory}
         />
       );
 
@@ -106,6 +118,9 @@ export const DocumentBench = forwardRef<DocumentBenchRef, DocumentBenchProps>((
           ref={wordViewerRef}
           document={document}
           onContentChange={onDocumentChange}
+          onDelete={onDelete}
+          onDownload={onDownload}
+          onHistory={onHistory}
         />
       );
 

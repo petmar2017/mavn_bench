@@ -98,7 +98,15 @@ export const documentApi = {
 
   async listDocuments(params?: { limit?: number; offset?: number; user_id?: string }) {
     const response = await api.get<{ documents: DocumentMessage[]; total: number; limit: number; offset: number }>('/api/documents/', { params });
+    console.log('[API] Raw response from /api/documents/:', response.data);
+    console.log('[API] Documents extracted:', response.data.documents);
     return response.data.documents || [];
+  },
+
+  async listDocumentsWithPagination(params?: { limit?: number; offset?: number; user_id?: string }) {
+    const response = await api.get<{ documents: DocumentMessage[]; total: number; limit: number; offset: number }>('/api/documents/', { params });
+    console.log('[API] Raw pagination response from /api/documents/:', response.data);
+    return response.data;
   },
 
   async updateDocument(documentId: string, data: Partial<DocumentMessage>) {

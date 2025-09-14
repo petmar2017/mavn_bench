@@ -421,6 +421,51 @@ with self.traced_operation("db_query"):
 - Dashboard for service dependencies
 - Real-time error tracking with trace context
 
+## Build for Scale - Pagination & Data Management
+
+### Pagination Requirements
+
+#### Backend Implementation
+- **Default Sorting**: Documents sorted by `updated_at` descending (most recent first)
+- **Centralized Configuration**: Pagination settings in `core/config.py`
+  - `default_limit`: 20 documents per page
+  - `max_limit`: 100 documents maximum
+  - `default_sort_by`: "updated_at"
+  - `default_sort_order`: "desc"
+- **Consistent Sorting**: Apply sorting BEFORE pagination to ensure consistency
+- **Database Optimization**: Use indexes on sort fields (updated_at, created_at)
+
+#### Frontend Implementation
+- **Infinite Scroll**: Load more documents automatically when user scrolls near bottom
+- **Scroll Threshold**: Trigger load when user is within 200px of bottom
+- **Loading States**: Show spinner/skeleton while loading additional pages
+- **Error Handling**: Display error message if pagination fails
+- **Deduplication**: Prevent duplicate documents when loading multiple pages
+- **Performance**: Use React.memo and useCallback to prevent unnecessary re-renders
+
+#### API Contract
+```typescript
+// Request
+GET /api/documents?limit=20&offset=0&sort_by=updated_at&sort_order=desc
+
+// Response
+{
+  "documents": [...],
+  "total": 150,
+  "limit": 20,
+  "offset": 0,
+  "has_more": true
+}
+```
+
+#### Best Practices
+- **Consistent State**: Maintain consistent sort order across page loads
+- **Cache Management**: Cache loaded pages to prevent re-fetching
+- **Optimistic Loading**: Start loading next page before user reaches exact threshold
+- **Virtual Scrolling**: Consider virtual scrolling for very large datasets (>1000 items)
+- **Search Integration**: Reset pagination when search query changes
+- **URL State**: Optionally store pagination state in URL for shareable links
+
 ## Security Considerations
 
 - Don't log sensitive data (passwords, tokens)
@@ -432,5 +477,5 @@ with self.traced_operation("db_query"):
 
 ---
 
-*Last Updated: July 14, 2025*
-*Version: 2.0.0 - Enhanced with comprehensive OpenTelemetry requirements*
+*Last Updated: September 14, 2025*
+*Version: 2.1.0 - Added pagination and infinite scroll requirements*

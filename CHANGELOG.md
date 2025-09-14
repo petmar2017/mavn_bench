@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Pagination and Document Management Improvements (2025-01-14 - Late)
+- **Backend Pagination Implementation**:
+  - Added sorting by `updated_at` descending in filesystem storage for consistent document ordering
+  - Fixed missing `list_all()` method in storage adapters (filesystem and Redis)
+  - Added PaginationConfig to central configuration with default settings:
+    - Default limit: 20 documents per page
+    - Max limit: 100 documents
+    - Default sort: updated_at descending
+  - All document listings now properly sorted with most recent first
+
+- **Frontend Infinite Scroll**:
+  - Implemented infinite scroll in DocumentList component with 200px threshold
+  - Added scroll event handler with automatic pagination loading
+  - Proper deduplication and re-sorting when appending new documents
+  - Loading indicator shows "Loading more documents..." during fetch
+  - "End of documents" message when all documents are loaded
+  - Smooth user experience without jarring refreshes
+
+- **PDF Processing Fix**:
+  - Temporarily disabled LLM validation step that was causing PDF processing to hang
+  - PDFs now complete processing successfully and show as "completed" status
+  - Identified issue in queue_service.py where LLM validation was timing out
+
+- **Documentation Updates**:
+  - Added comprehensive "Build for Scale - Pagination & Data Management" section to prompt.md
+  - Documented backend sorting implementation requirements
+  - Documented frontend infinite scroll specifications
+  - Added API contract documentation for pagination endpoints
+
+### Document Processing Status Fix (2025-01-14 - Night/Continued)
+- **Fixed Document List Display Issue**:
+  - Documents weren't appearing in the document list after upload despite successful upload confirmation
+  - Root cause: Frontend filter `!doc.metadata.deleted` was removing ALL documents because undefined evaluates as falsy in JavaScript
+  - Changed filter to only exclude documents where `deleted === true` explicitly
+  - Documents now properly appear in the list immediately after upload
+
+- **Processing Status Standardization**:
+  - Fixed "Waiting for processing..." status that never updated to completed
+  - Backend was hardcoding `processing_status: "completed"` regardless of actual document state
+  - Updated all API endpoints to use actual `metadata.processing_status` property
+  - Standardized entire codebase on single source of truth for document status
+
+- **Backend API Improvements**:
+  - Fixed `/api/documents` endpoint (line 453) to return actual processing_status from metadata
+  - Updated `/api/documents/{id}` endpoint (lines 193, 690, 801) to use metadata.processing_status property
+  - All search endpoints now consistently use metadata.processing_status property
+  - Documents created with correct ProcessingStage.PENDING or ProcessingStage.COMPLETED based on type
+
+- **Architecture Cleanup**:
+  - Clarified that `processing_stage` is the actual field in DocumentMetadata
+  - `processing_status` is a @property that returns the string value for frontend compatibility
+  - Removed all hardcoded status values in favor of actual metadata values
+  - Ensured consistent status tracking throughout document lifecycle
+
+- **User Experience Improvements**:
+  - Removed jarring 5-second refresh interval based on user feedback
+  - Documents now show correct processing status immediately
+  - Status properly transitions from pending → processing → completed/failed
+  - Fixed timing issues where WebSocket messages arrived before UI was ready
+
 ### Frontend UI Standardization (2025-01-14 - Night)
 - **Centralized UI Components**:
   - Created ViewerTabBar component for consistent tab navigation across all viewers

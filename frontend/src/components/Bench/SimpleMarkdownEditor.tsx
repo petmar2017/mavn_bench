@@ -2,31 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { Save, Edit, Eye } from 'lucide-react';
 import classNames from 'classnames';
 import { documentApi } from '../../services/api';
-import styles from './SummaryEditor.module.css';
+import styles from './SimpleMarkdownEditor.module.css';
 
-interface SummaryEditorProps {
+interface SimpleMarkdownEditorProps {
   documentId: string;
-  summary: string;
-  onSave?: (newSummary: string) => void;
+  content: string;
+  contentType: 'summary' | 'content' | 'transcript' | 'extracted';
+  label?: string;
+  onSave?: (newContent: string) => void;
   className?: string;
 }
 
-export const SummaryEditor: React.FC<SummaryEditorProps> = ({
+export const SimpleMarkdownEditor: React.FC<SimpleMarkdownEditorProps> = ({
   documentId,
-  summary: initialSummary,
+  content: initialContent,
+  contentType,
+  label,
   onSave,
   className
 }) => {
-  const [summary, setSummary] = useState(initialSummary || '');
+  const [content, setContent] = useState(initialContent || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSummary(initialSummary || '');
+    setContent(initialContent || '');
     setHasChanges(false);
-  }, [initialSummary]);
+  }, [initialContent]);
 
   const handleSave = async () => {
     if (!hasChanges) return;
@@ -35,34 +39,34 @@ export const SummaryEditor: React.FC<SummaryEditorProps> = ({
     setError(null);
 
     try {
-      // Update the document summary
-      await documentApi.updateDocument(documentId, {
-        metadata: {
-          summary: summary
-        }
-      });
+      // Update the document content based on type
+      const updateData = contentType === 'summary'
+        ? { metadata: { summary: content } }
+        : { content: content };
+
+      await documentApi.updateDocument(documentId, updateData);
 
       setHasChanges(false);
       setIsEditing(false);
-      onSave?.(summary);
+      onSave?.(content);
     } catch (err: any) {
-      console.error('Failed to save summary:', err);
-      setError('Failed to save summary. Please try again.');
+      console.error(`Failed to save ${contentType}:`, err);
+      setError(`Failed to save ${contentType}. Please try again.`);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleCancel = () => {
-    setSummary(initialSummary || '');
+    setContent(initialContent || '');
     setHasChanges(false);
     setIsEditing(false);
     setError(null);
   };
 
   const handleChange = (value: string) => {
-    setSummary(value);
-    setHasChanges(value !== initialSummary);
+    setContent(value);
+    setHasChanges(value !== initialContent);
     setError(null);
   };
 
@@ -150,21 +154,21 @@ export const SummaryEditor: React.FC<SummaryEditorProps> = ({
         {isEditing ? (
           <textarea
             className={styles.editor}
-            value={summary}
+            value={content}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder="Enter a summary for this document..."
+            placeholder={`Enter ${contentType} here...`}
             disabled={isSaving}
           />
         ) : (
           <div className={styles.preview}>
-            {summary ? (
+            {content ? (
               <div
                 className={styles.markdownContent}
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(summary) }}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
               />
             ) : (
               <div className={styles.placeholder}>
-                No summary available. Click Edit to add one.
+                No {contentType} available. Click Edit to add content.
               </div>
             )}
           </div>

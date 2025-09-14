@@ -208,6 +208,9 @@ class FilesystemStorage(StorageAdapter):
                     [f for f in os.listdir(self.metadata_dir) if f.endswith("_metadata.json")]
                 )
 
+                self.logger.info(f"[FilesystemStorage] Found {len(metadata_files)} metadata files in {self.metadata_dir}")
+                self.logger.info(f"[FilesystemStorage] Filter criteria - user_id: {user_id}, document_type: {document_type}")
+
                 for metadata_file in metadata_files:
                     metadata_path = self.metadata_dir / metadata_file
 
@@ -217,13 +220,23 @@ class FilesystemStorage(StorageAdapter):
                     metadata_data = json.loads(metadata_json)
                     metadata = DocumentMetadata(**metadata_data)
 
+                    # Log each document found
+                    self.logger.info(f"[FilesystemStorage] Found doc: id={metadata.document_id}, name={metadata.name}, user={metadata.created_user}, deleted={getattr(metadata, 'deleted', False)}")
+
                     # Apply filters
                     if user_id and metadata.created_user != user_id:
+                        self.logger.info(f"[FilesystemStorage] Filtering out doc {metadata.document_id} - user mismatch: {metadata.created_user} != {user_id}")
                         continue
                     if document_type and str(metadata.document_type) != document_type:
                         continue
 
                     metadata_list.append(metadata)
+
+                # Sort by updated_at descending (most recent first)
+                metadata_list.sort(
+                    key=lambda x: x.updated_at or x.created_at or datetime.min.isoformat(),
+                    reverse=True
+                )
 
                 # Apply pagination
                 start = offset
@@ -385,6 +398,34 @@ class FilesystemStorage(StorageAdapter):
             except Exception as e:
                 self.logger.error(f"Failed to revert document: {str(e)}")
                 raise StorageError(f"Failed to revert document: {str(e)}") from e
+
+    async def list_all(self) -> List[str]:
+        """List all document IDs in storage
+
+        Returns:
+            List of all document IDs
+        """
+        with self.traced_operation("list_all"):
+            try:
+                # Get all metadata files
+                metadata_files = [
+                    f for f in os.listdir(self.metadata_dir)
+                    if f.endswith("_metadata.json")
+                ]
+
+                # Extract document IDs from filenames
+                document_ids = []
+                for filename in metadata_files:
+                    # Remove "_metadata.json" suffix to get document ID
+                    doc_id = filename.replace("_metadata.json", "")
+                    document_ids.append(doc_id)
+
+                self.logger.info(f"Found {len(document_ids)} documents in storage")
+                return document_ids
+
+            except Exception as e:
+                self.logger.error(f"Failed to list documents: {str(e)}")
+                raise StorageError(f"Failed to list documents: {str(e)}") from e
 
     async def health_check(self) -> Dict[str, Any]:
         """Check filesystem storage health"""
