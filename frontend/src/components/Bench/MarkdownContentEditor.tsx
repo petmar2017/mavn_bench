@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Edit, FileEdit2 } from 'lucide-react';
+import { Eye, Edit, Columns } from 'lucide-react';
 import classNames from 'classnames';
 import styles from './MarkdownContentEditor.module.css';
 
@@ -73,7 +73,7 @@ export const MarkdownContentEditor: React.FC<MarkdownContentEditorProps> = ({
             onClick={() => setViewMode('split')}
             title="Split view"
           >
-            <FileEdit2 size={14} />
+            <Columns size={14} />
             <span>Split</span>
           </button>
           <button
