@@ -17,7 +17,7 @@ from .dependencies import get_current_user
 from .middleware.auth import AuthMiddleware
 from .middleware.telemetry import TelemetryMiddleware
 from .middleware.error_handler import ErrorHandlerMiddleware
-from .routers import documents, process, websocket, search, logs
+from .routers import documents, queue, process, websocket, search, logs
 from .socketio_app import socket_app
 
 
@@ -39,14 +39,27 @@ async def lifespan(app: FastAPI):
         FastAPIInstrumentor().instrument_app(app)
         logger.info("OpenTelemetry instrumentation enabled")
 
-    # Initialize services here if needed
+    # Initialize services
+    from ..services.queue_service import queue_service
+    from .routers.websocket import manager
+
+    # Inject WebSocket service into queue service
+    queue_service.set_websocket_service(manager)
+
+    # Start queue processing
+    await queue_service.start_processing()
+    logger.info("Queue processing started")
+
     logger.info(f"API running in {settings.environment} mode")
 
     yield
 
     # Shutdown
     logger.info("Shutting down Mavn Bench API")
-    # Cleanup resources here if needed
+
+    # Stop queue processing
+    await queue_service.stop_processing()
+    logger.info("Queue processing stopped")
 
 
 # Create FastAPI app
@@ -77,6 +90,7 @@ app.add_middleware(AuthMiddleware, settings=settings)
 
 # Include routers
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
+app.include_router(queue.router, tags=["queue"])
 app.include_router(process.router, prefix="/api/process", tags=["processing"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(websocket.router, prefix="/api", tags=["websocket"])

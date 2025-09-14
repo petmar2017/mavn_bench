@@ -461,7 +461,7 @@ async def list_documents(
 
 
 
-@router.post("/upload", status_code=status.HTTP_201_CREATED)
+@router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     file: UploadFile = File(...),
     name: Optional[str] = None,
@@ -470,7 +470,7 @@ async def upload_document(
     pdf_service: PDFService = Depends(get_pdf_service),
     trace_context: Dict = Depends(verify_trace_context)
 ) -> Dict[str, Any]:
-    """Upload a document file
+    """Upload a document file for async processing
 
     Args:
         file: Uploaded file
@@ -481,7 +481,7 @@ async def upload_document(
         trace_context: W3C trace context
 
     Returns:
-        Created document
+        Job information with document ID and job ID
 
     Raises:
         HTTPException: If upload fails
@@ -525,66 +525,28 @@ async def upload_document(
                 await f.write(content)
 
             try:
-                # Process based on file type
-                if doc_type == DocumentType.PDF:
-                    # Convert PDF to markdown
-                    markdown_content = await pdf_service.pdf_to_markdown(tmp_path)
+                # Import queue service
+                from ...services.queue_service import queue_service
+                from ...models.document import ProcessingStage
 
-                    # Validate and potentially re-extract with LLM if quality is poor
-                    validation_result = await pdf_service.validate_and_extract_pdf(
-                        tmp_path,
-                        markdown_content
-                    )
-
-                    # Use the improved extraction if validation found issues
-                    if validation_result.get("needs_reprocessing"):
-                        logger.info(f"PDF extraction was poor quality, using LLM-improved version")
-                        formatted_content = validation_result["improved_extraction"]
-                        raw_text = validation_result["improved_extraction"]
-                    else:
-                        formatted_content = markdown_content
-                        raw_text = markdown_content
-                else:
-                    # For other types, read as text for now
-                    async with aiofiles.open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        raw_text = await f.read()
-                    formatted_content = raw_text
-
-                # Detect language and generate summary for all document types
-                language = "en"  # Default
-                summary = None
-                try:
-                    from ...services.service_factory import ServiceFactory, ServiceType
-                    llm_service = ServiceFactory.create(ServiceType.LLM)
-
-                    # Detect language
-                    lang_result = await llm_service.detect_language(raw_text[:1000])
-                    language = lang_result[0] if lang_result[0] != "unknown" else "en"
-
-                    # Generate summary
-                    summary = await llm_service.generate_summary(
-                        raw_text[:3000],  # Use first 3000 chars
-                        max_length=100,
-                        style="concise"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to detect language or generate summary: {str(e)}")
-
-                # Create document
+                # Create document with PENDING status
+                document_id = str(uuid.uuid4())
                 metadata = DocumentMetadata(
-                    document_id=str(uuid.uuid4()),
+                    document_id=document_id,
                     document_type=doc_type,
                     name=name or file.filename,
-                    summary=summary,
-                    language=language,
-                    file_size=len(content),  # Set the actual file size
+                    summary="Waiting for processing...",  # Will be replaced during processing
+                    language="en",  # Default, will be detected during processing
+                    file_size=len(content),
                     created_user=user["user_id"],
-                    updated_user=user["user_id"]
+                    updated_user=user["user_id"],
+                    processing_stage=ProcessingStage.PENDING  # Set initial status
                 )
 
+                # Create minimal content for now
                 content_obj = DocumentContent(
-                    formatted_content=formatted_content,
-                    raw_text=raw_text
+                    formatted_content="",  # Will be populated during processing
+                    raw_text=""  # Will be populated during processing
                 )
 
                 document = DocumentMessage(
@@ -595,31 +557,46 @@ async def upload_document(
                     span_id=trace_context.get("span_id")
                 )
 
-                # Create document
+                # Create document in database with PENDING status
                 created = await service.create_document(document, user["user_id"])
 
-                logger.info(f"Document uploaded: {created.metadata.document_id}")
+                # Add to processing queue
+                job_id = await queue_service.enqueue_document(
+                    document_id=document_id,
+                    user_id=user["user_id"],
+                    file_path=tmp_path,
+                    file_type=doc_type.value,
+                    metadata={
+                        "original_filename": file.filename,
+                        "content_type": file.content_type,
+                        "file_size": len(content)
+                    }
+                )
 
-                # Return format that frontend expects
+                logger.info(f"Document queued for processing: {document_id}, job_id: {job_id}")
+
+                # Return format that frontend expects with job information
                 return {
-                    "id": created.metadata.document_id,  # Frontend expects 'id' field
+                    "id": document_id,
+                    "job_id": job_id,  # Include job ID for status tracking
                     "metadata": {
-                        "document_id": created.metadata.document_id,
+                        "document_id": document_id,
                         "name": created.metadata.name,
                         "document_type": created.metadata.document_type.value,
                         "version": created.metadata.version,
-                        "size": len(content),  # File size in bytes
+                        "size": len(content),
                         "created_at": created.metadata.created_at.isoformat(),
                         "updated_at": created.metadata.updated_at.isoformat(),
                         "user_id": user["user_id"],
                         "tags": [],
-                        "processing_status": "completed"
+                        "processing_status": ProcessingStage.PENDING.value  # Status is pending
                     },
                     "content": {
-                        "raw_content": raw_text[:1000] if raw_text else None,  # Truncate for response
-                        "formatted_content": formatted_content[:1000] if formatted_content else None,
-                        "summary": created.metadata.summary
-                    }
+                        "raw_content": None,  # No content yet
+                        "formatted_content": None,  # No content yet
+                        "summary": "Waiting for processing..."  # Status message
+                    },
+                    "queue_position": 1  # Will be updated by queue service
                 }
 
             finally:

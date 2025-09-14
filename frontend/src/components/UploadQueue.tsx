@@ -12,6 +12,8 @@ export interface UploadItem {
   progress: number;
   error?: string;
   documentId?: string;
+  jobId?: string;  // Job ID for tracking queue status
+  queuePosition?: number;  // Position in processing queue
   startTime: number;
 }
 
@@ -65,7 +67,10 @@ export const UploadQueue: React.FC<UploadQueueProps> = ({
       case 'uploading':
         return `Uploading... ${item.progress}%`;
       case 'processing':
-        return 'Processing document...';
+        if (item.queuePosition && item.queuePosition > 0) {
+          return `Queue position: ${item.queuePosition}`;
+        }
+        return item.progress > 0 ? `Processing... ${item.progress}%` : 'Processing document...';
       case 'completed':
         return 'Completed';
       case 'error':

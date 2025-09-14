@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Async Document Processing Queue (2025-01-14 - Late Evening)
+- **Backend Queue System**:
+  - Implemented QueueService for managing document processing queue
+  - Added ProcessingJob class with full job lifecycle tracking
+  - Background processing with configurable concurrency (default: 3 jobs)
+  - Queue position tracking and real-time updates
+  - WebSocket integration for broadcasting job status changes
+  - Actual document processing instead of simulation
+  - PDF, Word, and text file processing with LLM integration
+  - Language detection and summary generation for all documents
+
+- **Queue API Endpoints**:
+  - GET /api/queue/job/{job_id} - Get job status
+  - GET /api/queue/job/{job_id}/position - Get queue position
+  - GET /api/queue/user/jobs - List user's jobs
+  - GET /api/queue/status - Overall queue status
+  - DELETE /api/queue/job/{job_id} - Cancel pending job
+  - POST /api/queue/retry/{job_id} - Retry failed job (placeholder)
+
+- **Async Upload Flow**:
+  - Modified upload endpoint to return 202 Accepted with job_id
+  - Documents created with PENDING status immediately
+  - File queued for background processing
+  - Summary shows "Waiting for processing..." during queue
+  - Integrated queue service startup in API lifespan
+
+- **Frontend Queue Integration**:
+  - WebSocket listeners for queue events (progress, completed, failed)
+  - Upload items track job_id and queue position
+  - Real-time progress updates from WebSocket events
+  - Queue position display in upload queue UI
+  - Automatic document list refresh on completion
+  - Support for both async and sync (fallback) processing
+
 ### Frontend UI Enhancements (2025-01-14 - Evening)
 - **Version History Feature**:
   - Created VersionHistory component for displaying document version history

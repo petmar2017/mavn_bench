@@ -88,6 +88,11 @@ class DocumentMetadata(BaseModel):
     version: int = 1
     processing_stage: Optional[ProcessingStage] = ProcessingStage.PENDING
 
+    @property
+    def processing_status(self) -> Optional[str]:
+        """Alias for processing_stage for frontend compatibility"""
+        return self.processing_stage.value if self.processing_stage else None
+
     # Source and references
     source: Optional[DocumentSource] = None
     source_url: Optional[str] = None

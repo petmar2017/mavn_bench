@@ -94,21 +94,39 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
           throw new Error('Invalid response from server');
         }
 
-        // Update to processing status
-        if (uploadId && updateUploadItem) {
-          updateUploadItem(uploadId, { status: 'processing', progress: 80 });
-        }
+        // Check if we have a job_id (async processing)
+        if (response.job_id) {
+          // Async processing - update with job info
+          if (uploadId && updateUploadItem) {
+            updateUploadItem(uploadId, {
+              status: 'processing',
+              progress: 0,
+              documentId: response.id,
+              jobId: response.job_id,
+              queuePosition: response.queue_position
+            });
+          }
 
-        logger.info('File uploaded successfully', {
-          fileName: file.name,
-          documentId: response.id
-        });
+          logger.info('File queued for processing', {
+            fileName: file.name,
+            documentId: response.id,
+            jobId: response.job_id,
+            queuePosition: response.queue_position
+          });
+        } else {
+          // Sync processing (fallback) - mark as completed
+          if (uploadId && updateUploadItem) {
+            updateUploadItem(uploadId, {
+              status: 'completed',
+              progress: 100,
+              documentId: response.id
+            });
+          }
 
-        // Mark as completed
-        if (uploadId && updateUploadItem) {
-          setTimeout(() => {
-            updateUploadItem(uploadId, { status: 'completed', progress: 100 });
-          }, 500);
+          logger.info('File uploaded successfully', {
+            fileName: file.name,
+            documentId: response.id
+          });
         }
 
         // Only show success state if this was the last file in a batch

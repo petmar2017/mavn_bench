@@ -87,11 +87,56 @@ function AppContent() {
       showToast(notification);
     });
 
+    // Subscribe to queue events
+    const unsubQueue = wsService.on('queue:job_progress', (data: any) => {
+      // Update upload item progress
+      if (data.job_id) {
+        const uploadItem = uploadQueue.find(item => item.jobId === data.job_id);
+        if (uploadItem) {
+          updateUploadItem(uploadItem.id, {
+            progress: data.progress,
+            status: 'processing'
+          });
+        }
+      }
+    });
+
+    const unsubComplete = wsService.on('queue:job_completed', (data: any) => {
+      // Mark upload as completed
+      if (data.job_id) {
+        const uploadItem = uploadQueue.find(item => item.jobId === data.job_id);
+        if (uploadItem) {
+          updateUploadItem(uploadItem.id, {
+            status: 'completed',
+            progress: 100
+          });
+          // Refresh documents list
+          setRefreshDocuments(prev => prev + 1);
+        }
+      }
+    });
+
+    const unsubFailed = wsService.on('queue:job_failed', (data: any) => {
+      // Mark upload as failed
+      if (data.job_id) {
+        const uploadItem = uploadQueue.find(item => item.jobId === data.job_id);
+        if (uploadItem) {
+          updateUploadItem(uploadItem.id, {
+            status: 'error',
+            error: data.error_message || 'Processing failed'
+          });
+        }
+      }
+    });
+
     return () => {
       unsubscribe();
+      unsubQueue();
+      unsubComplete();
+      unsubFailed();
       wsService.disconnect();
     };
-  }, []);
+  }, [uploadQueue]);
 
   // Upload queue management functions
   const addToUploadQueue = (file: File): string => {
