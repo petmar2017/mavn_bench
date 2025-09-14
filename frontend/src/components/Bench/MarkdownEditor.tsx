@@ -8,14 +8,16 @@ import styles from './Bench.module.css';
 interface MarkdownEditorProps {
   document: DocumentMessage;
   onContentChange?: () => void;
+  viewMode?: 'edit' | 'preview' | 'split';
 }
 
 export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   document,
   onContentChange,
+  viewMode: initialViewMode,
 }) => {
   const [content, setContent] = useState('');
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>(initialViewMode || 'split');
   const [isModified, setIsModified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

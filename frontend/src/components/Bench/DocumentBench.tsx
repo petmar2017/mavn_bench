@@ -1,6 +1,7 @@
 import { MarkdownEditor } from './MarkdownEditor';
 import { ExcelViewer } from './ExcelViewer';
 import { JSONViewer } from './JSONViewer';
+import { PDFViewer } from './PDFViewer';
 import type { DocumentMessage } from '../../services/api';
 import styles from './Bench.module.css';
 
@@ -46,15 +47,7 @@ export const DocumentBench: React.FC<DocumentBenchProps> = ({
       );
 
     case 'pdf':
-      return (
-        <div className={styles.viewerContainer}>
-          <div className={styles.pdfViewer}>
-            <h3>PDF Viewer</h3>
-            <p>PDF viewing will be implemented with PDF.js</p>
-            <pre>{document.content?.text || 'No content available'}</pre>
-          </div>
-        </div>
-      );
+      return <PDFViewer document={document} />;
 
     case 'word':
       return (

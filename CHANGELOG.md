@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### PDF Viewer Implementation and Bug Fixes (2025-09-14 - Evening)
+- **PDF Viewer Component**:
+  - Created dedicated PDFViewer component for displaying PDF content
+  - Integrates with lazy-loading document content service
+  - Displays PDF content converted to markdown by backend
+  - Shows loading states and error handling
+  - Falls back to MarkdownEditor for formatted display
+- **Frontend Improvements**:
+  - Fixed document sorting to show latest documents first
+  - Documents now sorted by updated_at/created_at in descending order
+  - Enhanced CSS styling for PDF viewer with proper headers
+  - Added empty state messaging for documents without content
+- **Backend PDF Processing**:
+  - PDF content extracted using PyMuPDF or Claude AI
+  - Converted content stored as markdown for display
+  - Content accessible via lazy-loading endpoint
+
 ### UI Improvements and Architecture Updates (2025-09-14)
 - **Frontend UI Restructuring**:
   - Implemented split-panel layout with 400px left sidebar
