@@ -9,8 +9,7 @@ from pydantic import Field
 from functools import lru_cache
 
 class StorageConfig(BaseSettings):
-    type: str = Field(default="filesystem", env="STORAGE_TYPE")
-    filesystem_base_path: str = Field(default="/document_store", env="FILESYSTEM_BASE_PATH")
+    type: str = Field(default="redis", env="STORAGE_TYPE")
     redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
 
 class DatabaseConfig(BaseSettings):
@@ -72,6 +71,14 @@ class PaginationConfig(BaseSettings):
     default_sort_by: str = Field(default="updated_at", env="PAGINATION_DEFAULT_SORT_BY")
     default_sort_order: str = Field(default="desc", env="PAGINATION_DEFAULT_SORT_ORDER")
 
+class QueueConfig(BaseSettings):
+    """Queue settings for document processing"""
+    backend: str = Field(default="redis", env="QUEUE_BACKEND", description="Queue backend: 'redis' or 'memory'")
+    max_concurrent_workers: int = Field(default=3, env="QUEUE_MAX_WORKERS")
+    processing_timeout: int = Field(default=300, env="QUEUE_PROCESSING_TIMEOUT", description="Processing timeout in seconds")
+    retry_max_attempts: int = Field(default=3, env="QUEUE_RETRY_MAX_ATTEMPTS")
+    stale_job_check_interval: int = Field(default=60, env="QUEUE_STALE_JOB_CHECK_INTERVAL", description="Check for stale jobs every N seconds")
+
 class Settings(BaseSettings):
     app_name: str = Field(default="Mavn Bench", env="APP_NAME")
     app_version: str = Field(default="1.0.0", env="APP_VERSION")
@@ -85,6 +92,7 @@ class Settings(BaseSettings):
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     pagination: PaginationConfig = Field(default_factory=PaginationConfig)
+    queue: QueueConfig = Field(default_factory=QueueConfig)
     
     class Config:
         env_file = ".env"

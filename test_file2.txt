@@ -1,0 +1,7 @@
+This is another test file for document processing.
+It contains sample text to test the LLM processing pipeline.
+We want to verify that:
+1. The file uploads successfully
+2. The queue processor picks it up
+3. LLM services process the content
+4. The document is marked as completed

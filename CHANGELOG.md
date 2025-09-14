@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Redis-Based Distributed Queue Architecture (2025-01-14 - Evening)
+- **Major Architecture Change**: Migrated to Redis-only storage and queue system for horizontal scaling
+  - Removed filesystem storage option completely - now Redis-only for all document storage
+  - Implemented `RedisQueueService` for distributed document processing with atomic operations
+  - Added support for multiple workers processing documents concurrently
+  - Implemented automatic stale job recovery and retry mechanisms with exponential backoff
+  - Added dead letter queue for permanently failed documents
+  - Worker heartbeat system for health monitoring and failure detection
+
+- **Queue Features**:
+  - Atomic dequeue operations using Redis ZPOPMIN to prevent duplicate processing
+  - Priority-based processing with timestamp scoring (FIFO by default)
+  - Configurable retry attempts (default: 3) with exponential backoff
+  - Real-time queue statistics and worker monitoring
+  - Graceful worker shutdown with cleanup
+
+- **Configuration Updates**:
+  - Added `QueueConfig` with settings for backend type, worker concurrency, timeouts
+  - Updated `StorageConfig` to default to Redis (removed filesystem option)
+  - All storage operations now use Redis for better scalability
+
+- **Benefits**:
+  - Enables horizontal scaling by running multiple worker instances
+  - Prevents document processing duplication across workers
+  - Automatic recovery from worker failures
+  - Better resource utilization with distributed processing
+
 ### Pagination and Document Management Improvements (2025-01-14 - Late)
 - **Backend Pagination Implementation**:
   - Added sorting by `updated_at` descending in filesystem storage for consistent document ordering

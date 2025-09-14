@@ -16,6 +16,7 @@ from ..models.document import (
     DocumentAction
 )
 from ..storage.base_storage import StorageAdapter, DocumentNotFoundError
+from ..storage.storage_factory import StorageFactory
 
 
 class DocumentService(BaseService):

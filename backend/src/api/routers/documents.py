@@ -809,8 +809,9 @@ async def upload_document(
                 }
 
             finally:
-                # Clean up temp file
-                os.unlink(tmp_path)
+                # Don't delete temp file here - queue processor needs it
+                # The queue processor will clean it up after processing
+                pass  # os.unlink(tmp_path)
 
         except HTTPException:
             raise

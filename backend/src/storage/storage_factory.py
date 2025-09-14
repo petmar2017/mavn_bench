@@ -4,7 +4,6 @@ from typing import Type, Dict, Optional, Any
 from enum import Enum
 
 from .base_storage import StorageAdapter, StorageError
-from .filesystem_storage import FilesystemStorage
 from .redis_storage import RedisStorage
 from ..core.logger import CentralizedLogger
 from ..core.config import get_settings
@@ -12,16 +11,13 @@ from ..core.config import get_settings
 
 class StorageType(str, Enum):
     """Supported storage backend types"""
-    FILESYSTEM = "filesystem"
     REDIS = "redis"
-    HYBRID = "hybrid"  # Future: Combined filesystem + Redis
 
 
 class StorageFactory:
     """Factory for creating storage adapter instances with dependency injection"""
 
     _storage_classes: Dict[StorageType, Type[StorageAdapter]] = {
-        StorageType.FILESYSTEM: FilesystemStorage,
         StorageType.REDIS: RedisStorage,
     }
 
@@ -78,11 +74,8 @@ class StorageFactory:
         try:
             storage_class = cls._storage_classes[storage_type]
 
-            # Apply default configuration based on storage type
-            if storage_type == StorageType.FILESYSTEM and "base_path" not in kwargs:
-                settings = get_settings()
-                kwargs["base_path"] = settings.storage.filesystem_base_path
-            elif storage_type == StorageType.REDIS and "redis_url" not in kwargs:
+            # Apply default configuration for Redis
+            if storage_type == StorageType.REDIS and "redis_url" not in kwargs:
                 settings = get_settings()
                 kwargs["redis_url"] = settings.storage.redis_url
 
@@ -136,65 +129,4 @@ class StorageFactory:
         return list(cls._storage_classes.keys())
 
 
-class HybridStorage(StorageAdapter):
-    """Hybrid storage adapter combining filesystem and Redis (future implementation)
-
-    This will use Redis for hot data and filesystem for cold data,
-    with automatic promotion/demotion based on access patterns.
-    """
-
-    def __init__(self, filesystem_path: Optional[str] = None, redis_url: Optional[str] = None):
-        """Initialize hybrid storage
-
-        Args:
-            filesystem_path: Base path for filesystem storage
-            redis_url: Redis connection URL
-        """
-        super().__init__("hybrid")
-        self.filesystem = FilesystemStorage(filesystem_path)
-        self.redis = RedisStorage(redis_url)
-        self.logger.info("Initialized hybrid storage (filesystem + Redis)")
-
-    async def save(self, document: Any) -> bool:
-        """Save to both storages (Redis as cache, filesystem as persistent)"""
-        # Implementation would save to both, with Redis as write-through cache
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def load(self, document_id: str) -> Optional[Any]:
-        """Load from Redis first, fallback to filesystem"""
-        # Implementation would check Redis first, then filesystem
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def delete(self, document_id: str) -> bool:
-        """Delete from both storages"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def exists(self, document_id: str) -> bool:
-        """Check existence in either storage"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def list_documents(
-        self,
-        user_id: Optional[str] = None,
-        document_type: Optional[str] = None,
-        limit: int = 100,
-        offset: int = 0
-    ) -> list:
-        """List documents from filesystem (source of truth)"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def save_version(self, document_id: str, version: Any) -> bool:
-        """Save version to filesystem only"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def get_versions(self, document_id: str) -> list:
-        """Get versions from filesystem"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def revert_to_version(self, document_id: str, version_number: int) -> Optional[Any]:
-        """Revert using filesystem versions"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
-
-    async def health_check(self) -> Dict[str, Any]:
-        """Check health of both storages"""
-        raise NotImplementedError("Hybrid storage not yet implemented")
+# Removed HybridStorage - focusing on Redis only
