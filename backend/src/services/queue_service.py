@@ -17,10 +17,10 @@ import json
 
 from src.services.base_service import BaseService
 from src.models.document import ProcessingStage, DocumentType
-from src.core.logger import get_logger
+from src.core.logger import CentralizedLogger
 from src.storage.storage_factory import StorageFactory, StorageType
 
-logger = get_logger(__name__)
+logger = CentralizedLogger(__name__)
 
 
 class ProcessingJob:

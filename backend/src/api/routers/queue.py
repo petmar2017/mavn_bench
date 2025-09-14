@@ -14,9 +14,9 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from src.api.dependencies import get_current_user
 from src.services.queue_service import queue_service
-from src.core.logging import get_logger
+from src.core.logger import CentralizedLogger
 
-logger = get_logger(__name__)
+logger = CentralizedLogger(__name__)
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
 
