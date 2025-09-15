@@ -244,38 +244,72 @@ class TranscriptionService(BaseService):
         # Similar flow for podcasts
 ```
 
-**LLMService**
+**LLMService - Tool-Based Architecture**
 ```python
 class LLMService(BaseService):
-    """LLM integration service with multiple providers"""
-    
+    """LLM service using modular tool-based architecture"""
+
     def __init__(self):
         super().__init__("LLMService")
-        self.providers = {
-            "openai": OpenAIProvider(),
-            "anthropic": AnthropicProvider(),
-        }
-        self.rate_limiter = RateLimiter()
-    
-    async def generate_summary(
-        self, 
-        text: str, 
-        max_length: int = 500,
-        provider: str = "openai"
-    ) -> str:
-        """Generate document summary"""
-        async with self.rate_limiter.acquire():
-            with self.traced_operation("generate_summary", provider=provider):
-                return await self.providers[provider].summarize(text, max_length)
-    
-    async def extract_entities(self, text: str) -> List[Entity]:
-        """Extract named entities from text"""
-        # NER using LLM
-    
-    async def answer_question(self, context: str, question: str) -> str:
-        """RAG-based question answering"""
-        # Context-aware Q&A
+        # Auto-register all tools using decorators
+        self._register_tools()
+
+    def _register_tools(self):
+        """Auto-discovery tool registration"""
+        from .llm import tools  # Triggers decorator registration
+        from .llm.tool_decorators import auto_register_decorated_tools
+        num_registered = auto_register_decorated_tools()
+        self.logger.info(f"Auto-registered {num_registered} tools")
+
+    async def execute_tool(
+        self,
+        tool_type: LLMToolType,
+        input_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a specific tool with dynamic dispatch"""
+        tool = ToolRegistry.create(tool_type, self.llm_client)
+        return await tool.execute(input_data)
+
+    def _get_dynamic_capabilities(self) -> List[str]:
+        """Generate capabilities from registered tools"""
+        capabilities = set()
+        for tool_type in ToolRegistry.get_available_tools():
+            metadata = ToolRegistry.get_tool_metadata(tool_type)
+            # Map tool capabilities to service capabilities
+            capabilities.update(self._map_capabilities(metadata))
+        return sorted(list(capabilities))
 ```
+
+#### LLM Tool Architecture
+
+The LLM service has been refactored from a monolithic 894-line service to a modular, plugin-based architecture:
+
+**Tool Components:**
+- **BaseLLMTool**: Abstract base class defining the tool interface
+- **ToolRegistry**: Central registry for tool discovery and creation
+- **Tool Decorators**: Auto-registration system using Python decorators
+- **Specialized Tools**: 7 focused tools (Summarization, Entity Extraction, etc.)
+
+**Auto-Registration System:**
+```python
+# Tool implementation with decorator
+@register_tool(LLMToolType.SUMMARIZATION)
+class SummarizationTool(BaseLLMTool):
+    async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        # Tool-specific logic
+        pass
+
+# Auto-discovery eliminates manual registration
+# Old: 22 lines of manual registration
+# New: 3 lines of auto-discovery
+```
+
+**Benefits:**
+- **Modularity**: Each tool is ~100-200 lines and independently testable
+- **Scalability**: New capabilities added by creating new tool classes
+- **Maintainability**: Changes to one tool don't affect others
+- **Type Safety**: Decorators enforce proper type usage
+- **Dynamic Configuration**: Capabilities generated from registered tools
 
 ### 3. Storage Layer
 
@@ -334,7 +368,143 @@ class RedisStorage(StorageAdapter):
         )
 ```
 
-### 4. Search Services
+### 4. Queue Architecture
+
+#### Distributed Queue Service
+```python
+class QueueService(BaseService):
+    """Redis-based distributed queue for horizontal scaling"""
+
+    def __init__(self):
+        super().__init__("QueueService")
+        self.redis = Redis.from_url(settings.redis.url)
+        self.active_workers = {}
+
+    async def enqueue_document(
+        self,
+        document: DocumentMessage,
+        priority: ProcessingPriority = ProcessingPriority.NORMAL
+    ) -> str:
+        """Add document to processing queue"""
+        task_id = str(uuid.uuid4())
+
+        # Store document in Redis
+        await self.redis.hset(
+            f"doc:{document.metadata.document_id}",
+            mapping=document.model_dump_json()
+        )
+
+        # Add to priority queue
+        queue_name = f"queue:{priority.value}"
+        await self.redis.lpush(queue_name, task_id)
+
+        # Track processing status
+        await self._update_status(task_id, ProcessingStatus.QUEUED)
+
+        return task_id
+```
+
+#### Worker Pool Architecture
+```python
+class WorkerPool:
+    """Manages distributed workers for document processing"""
+
+    def __init__(self, pool_size: int = 4):
+        self.pool_size = pool_size
+        self.workers = []
+
+    async def start(self):
+        """Start worker pool"""
+        for i in range(self.pool_size):
+            worker = DocumentWorker(worker_id=f"worker-{i}")
+            self.workers.append(worker)
+            asyncio.create_task(worker.run())
+
+    async def scale(self, new_size: int):
+        """Dynamically scale worker pool"""
+        if new_size > self.pool_size:
+            # Add workers
+            for i in range(self.pool_size, new_size):
+                worker = DocumentWorker(worker_id=f"worker-{i}")
+                self.workers.append(worker)
+                asyncio.create_task(worker.run())
+        elif new_size < self.pool_size:
+            # Remove workers gracefully
+            workers_to_remove = self.workers[new_size:]
+            for worker in workers_to_remove:
+                await worker.shutdown()
+```
+
+#### Document Processor Service
+```python
+class DocumentProcessor(BaseService):
+    """Centralized document processing orchestration"""
+
+    async def process_document(
+        self,
+        document: DocumentMessage,
+        progress_callback: Optional[Callable] = None
+    ) -> DocumentMessage:
+        """Process document through appropriate pipeline"""
+
+        # Determine processing strategy
+        strategy = self._get_processing_strategy(document.metadata.doc_type)
+
+        # Execute processing pipeline
+        pipeline = [
+            ("extract", self._extract_content),
+            ("convert", self._convert_format),
+            ("enhance", self._enhance_with_ai),
+            ("index", self._index_for_search),
+        ]
+
+        for step_name, step_func in pipeline:
+            try:
+                document = await step_func(document)
+                if progress_callback:
+                    await progress_callback(step_name, document)
+            except Exception as e:
+                self.logger.error(f"Pipeline step {step_name} failed: {e}")
+                document.metadata.processing_errors.append({
+                    "step": step_name,
+                    "error": str(e),
+                    "timestamp": datetime.utcnow()
+                })
+
+        return document
+```
+
+#### Priority Queue Management
+```python
+class ProcessingPriority(Enum):
+    URGENT = "urgent"      # < 1 minute
+    HIGH = "high"          # < 5 minutes
+    NORMAL = "normal"      # < 15 minutes
+    LOW = "low"            # Best effort
+
+class PriorityQueueManager:
+    """Manages multiple priority queues"""
+
+    async def get_next_task(self) -> Optional[Task]:
+        """Get next task respecting priorities"""
+        # Check queues in priority order
+        for priority in ProcessingPriority:
+            queue_name = f"queue:{priority.value}"
+            task_id = await self.redis.rpop(queue_name)
+            if task_id:
+                return await self._load_task(task_id)
+        return None
+```
+
+#### Queue Features
+- **Horizontal Scaling**: Add workers dynamically based on load
+- **Priority Processing**: Multiple priority levels with SLA guarantees
+- **Retry Mechanism**: Configurable retry with exponential backoff
+- **Dead Letter Queue**: Failed tasks moved to DLQ for investigation
+- **Progress Tracking**: Real-time progress updates via WebSocket
+- **Graceful Shutdown**: Workers complete current tasks before stopping
+
+### 5. Search Services
 
 #### Vector Search Architecture
 ```python

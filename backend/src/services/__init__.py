@@ -4,7 +4,7 @@ from .base_service import BaseService
 from .service_factory import ServiceFactory, ServiceType
 from .document_service import DocumentService
 from .pdf_service import PDFService
-from .llm_service import LLMService, LLMProvider, Entity
+from .llm_service import LLMService, LLMProvider
 from .transcription_service import TranscriptionService
 from .web_scraping_service import WebScrapingService
 
@@ -25,5 +25,4 @@ __all__ = [
 
     # Supporting classes
     "LLMProvider",
-    "Entity",
 ]

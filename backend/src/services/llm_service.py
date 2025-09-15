@@ -1,7 +1,6 @@
-"""LLM service for AI operations (summarization, entity extraction, Q&A)"""
+"""LLM service for AI operations using tool-based architecture"""
 
 import asyncio
-import json
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from enum import Enum
@@ -11,6 +10,8 @@ from anthropic import AsyncAnthropic
 
 from .base_service import BaseService
 from .service_factory import ServiceFactory, ServiceType
+from .llm.tool_registry import ToolRegistry, LLMToolType
+from .llm.base_tool import BaseLLMTool, ToolCapability
 from ..models.document import DocumentMessage, DocumentType
 from ..core.config import get_settings
 
@@ -22,33 +23,86 @@ class LLMProvider(str, Enum):
     LOCAL = "local"
 
 
-class Entity:
-    """Extracted entity from text"""
+class LLMClient:
+    """Wrapper for LLM API clients to provide unified interface for tools"""
 
     def __init__(
         self,
-        text: str,
-        entity_type: str,
-        confidence: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None
+        provider: LLMProvider,
+        openai_client: Optional[AsyncOpenAI] = None,
+        anthropic_client: Optional[AsyncAnthropic] = None,
+        model: str = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7
     ):
-        self.text = text
-        self.entity_type = entity_type
-        self.confidence = confidence
-        self.metadata = metadata or {}
+        self.provider = provider
+        self.openai_client = openai_client
+        self.anthropic_client = anthropic_client
+        self.model = model
+        self.max_tokens = max_tokens
+        self.temperature = temperature
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert entity to dictionary"""
-        return {
-            "text": self.text,
-            "type": self.entity_type,
-            "confidence": self.confidence,
-            "metadata": self.metadata
-        }
+    async def generate(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        **kwargs
+    ) -> str:
+        """Generate text using the appropriate LLM provider"""
+        max_tokens = max_tokens or self.max_tokens
+        temperature = temperature or self.temperature
+
+        if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
+            response = await self.anthropic_client.messages.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.content[0].text
+
+        elif self.provider == LLMProvider.OPENAI and self.openai_client:
+            response = await self.openai_client.chat.completions.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content
+
+        else:
+            # Fallback for testing
+            await asyncio.sleep(0.1)  # Simulate API latency
+            return f"Generated response for: {prompt[:100]}..."
+
+    async def generate_embeddings(
+        self,
+        text: str,
+        model: str = "text-embedding-ada-002"
+    ) -> List[float]:
+        """Generate embeddings (OpenAI only for now)"""
+        if self.openai_client:
+            response = await self.openai_client.embeddings.create(
+                model=model,
+                input=text
+            )
+            return response.data[0].embedding
+        else:
+            # Mock embeddings for testing
+            import random
+            return [random.random() for _ in range(384)]
 
 
 class LLMService(BaseService):
-    """Service for LLM operations including summarization, entity extraction, and Q&A"""
+    """Service for LLM operations using tool-based architecture
+
+    This refactored service uses a modular tool-based approach where each
+    AI operation is encapsulated in its own tool class. This provides:
+    - Better modularity and maintainability
+    - Easier testing and extension
+    - Plugin-like architecture for adding new capabilities
+    """
 
     def __init__(self, provider: Optional[LLMProvider] = None):
         """Initialize LLM service
@@ -67,30 +121,106 @@ class LLMService(BaseService):
 
         # Set provider-specific settings
         if provider == LLMProvider.ANTHROPIC:
-            self.max_tokens = settings.llm.claude_max_tokens
-            self.temperature = settings.llm.claude_temperature
-            self.model = settings.llm.claude_model
+            max_tokens = settings.llm.claude_max_tokens
+            temperature = settings.llm.claude_temperature
+            model = settings.llm.claude_model
         elif provider == LLMProvider.OPENAI:
-            self.max_tokens = settings.llm.openai_max_tokens
-            self.temperature = settings.llm.openai_temperature
-            self.model = settings.llm.openai_model
+            max_tokens = settings.llm.openai_max_tokens
+            temperature = settings.llm.openai_temperature
+            model = settings.llm.openai_model
         else:
-            # Use default settings (Claude by default)
-            self.max_tokens = settings.llm.max_tokens
-            self.temperature = settings.llm.temperature
-            self.model = settings.llm.default_model
+            max_tokens = settings.llm.max_tokens
+            temperature = settings.llm.temperature
+            model = settings.llm.default_model
 
         # Initialize API clients
-        self.openai_client = None
-        self.anthropic_client = None
+        openai_client = None
+        anthropic_client = None
 
         if settings.llm.openai_api_key:
-            self.openai_client = AsyncOpenAI(api_key=settings.llm.openai_api_key)
+            openai_client = AsyncOpenAI(api_key=settings.llm.openai_api_key)
 
         if settings.llm.anthropic_api_key:
-            self.anthropic_client = AsyncAnthropic(api_key=settings.llm.anthropic_api_key)
+            anthropic_client = AsyncAnthropic(api_key=settings.llm.anthropic_api_key)
 
-        self.logger.info(f"Initialized LLMService with provider: {provider}")
+        # Create LLM client wrapper for tools
+        self.llm_client = LLMClient(
+            provider=provider,
+            openai_client=openai_client,
+            anthropic_client=anthropic_client,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+
+        # Register all tools on first initialization
+        self._register_tools()
+
+        self.logger.info(f"Initialized LLMService with provider: {provider} using tool-based architecture")
+
+    def _register_tools(self):
+        """Register all available LLM tools using auto-discovery"""
+        try:
+            # Import all tool modules to trigger decorator registration
+            # This import will execute the @register_tool decorators
+            from .llm import tools  # noqa: F401
+
+            # Auto-register all decorated tools
+            from .llm.tool_decorators import auto_register_decorated_tools
+
+            # Register all tools that were decorated
+            num_registered = auto_register_decorated_tools()
+
+            self.logger.info(f"Auto-registered {num_registered} LLM tools via decorators")
+
+            # Log available tools for debugging
+            available_tools = ToolRegistry.get_available_tools()
+            self.logger.debug(f"Available tools: {[tool.value for tool in available_tools]}")
+
+        except ImportError as e:
+            self.logger.error(f"Failed to import tools: {str(e)}")
+            raise RuntimeError(f"Tool registration failed: {str(e)}")
+
+    async def execute_tool(
+        self,
+        tool_type: LLMToolType,
+        input_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a specific tool
+
+        Args:
+            tool_type: Type of tool to execute
+            input_data: Input data for the tool
+
+        Returns:
+            Tool execution result
+        """
+        with self.traced_operation(
+            "execute_tool",
+            tool_type=tool_type.value,
+            input_keys=list(input_data.keys())
+        ):
+            try:
+                # Get or create tool instance
+                tool = ToolRegistry.create(
+                    tool_type=tool_type,
+                    llm_client=self.llm_client,
+                    singleton=True
+                )
+
+                # Execute tool
+                result = await tool.execute(input_data)
+
+                self.logger.info(f"Executed tool {tool_type.value} successfully")
+                return result
+
+            except Exception as e:
+                self.logger.error(f"Failed to execute tool {tool_type.value}: {str(e)}")
+                raise
+
+    # Backwards compatibility methods
+    # These methods maintain the same interface as the old service
+    # but delegate to the appropriate tools
 
     async def text_to_markdown(
         self,
@@ -106,77 +236,14 @@ class LLMService(BaseService):
         Returns:
             Formatted markdown text
         """
-        with self.traced_operation("text_to_markdown", text_length=len(text)):
-            try:
-                # For simple text files, enhance with markdown formatting
-                prompt = """
-                Convert this plain text to well-formatted markdown.
-                Rules:
-                1. Add appropriate headers (##) for sections
-                2. Use bullet points or numbered lists where appropriate
-                3. Add emphasis (bold/italic) for important terms
-                4. Preserve code blocks if any (use ```)
-                5. Keep the original content intact, just improve formatting
-                6. Make it easy to read and navigate
-
-                Text:
-                {text}
-
-                Return only the formatted markdown, no explanations.
-                """.strip()
-
-                if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
-                    response = await self.anthropic_client.messages.create(
-                        model=self.model,
-                        max_tokens=self.max_tokens,
-                        temperature=0.3,  # Lower temperature for consistent formatting
-                        messages=[
-                            {"role": "user", "content": prompt.format(text=text[:8000])}  # Limit text length
-                        ]
-                    )
-                    return response.content[0].text.strip()
-
-                elif self.provider == LLMProvider.OPENAI and self.openai_client:
-                    response = await self.openai_client.chat.completions.create(
-                        model=self.model,
-                        max_tokens=self.max_tokens,
-                        temperature=0.3,
-                        messages=[
-                            {"role": "system", "content": "You are a markdown formatting expert."},
-                            {"role": "user", "content": prompt.format(text=text[:8000])}
-                        ]
-                    )
-                    return response.choices[0].message.content.strip()
-
-                else:
-                    # Fallback: Basic markdown formatting
-                    self.logger.warning("No LLM provider available, using basic formatting")
-                    lines = text.split('\n')
-                    formatted = []
-
-                    for line in lines:
-                        line = line.strip()
-                        if not line:
-                            formatted.append('')
-                        elif line.isupper() and len(line) < 100:
-                            # Likely a header
-                            formatted.append(f"## {line.title()}")
-                        elif line.startswith(('- ', '* ', '• ')):
-                            # Already a list item
-                            formatted.append(line)
-                        elif line.startswith(tuple(str(i) + '.' for i in range(10))):
-                            # Numbered list
-                            formatted.append(line)
-                        else:
-                            # Regular paragraph
-                            formatted.append(line)
-
-                    return '\n'.join(formatted)
-
-            except Exception as e:
-                self.logger.error(f"Failed to convert text to markdown: {str(e)}")
-                # Return original text on error
-                return text
+        result = await self.execute_tool(
+            LLMToolType.TEXT_TO_MARKDOWN,
+            {
+                "text": text,
+                "preserve_structure": preserve_structure
+            }
+        )
+        return result.get("markdown", text)
 
     async def generate_summary(
         self,
@@ -194,174 +261,48 @@ class LLMService(BaseService):
         Returns:
             Generated summary
         """
-        with self.traced_operation(
-            "generate_summary",
-            text_length=len(text),
-            max_length=max_length,
-            style=style
-        ):
-            try:
-                # Validate input
-                if not text or len(text.strip()) == 0:
-                    return "No text provided for summarization."
-
-                # Prepare prompt based on style
-                prompt = self._prepare_summary_prompt(text, max_length, style)
-
-                # Call LLM API
-                summary = await self._call_llm(prompt, max_tokens=max_length * 2)
-
-                self.logger.info(f"Generated {style} summary of {len(text)} chars")
-                return summary
-
-            except Exception as e:
-                self.logger.error(f"Failed to generate summary: {str(e)}")
-                raise
-
-    def _prepare_summary_prompt(self, text: str, max_length: int, style: str) -> str:
-        """Prepare prompt for summarization
-
-        Args:
-            text: Text to summarize
-            max_length: Maximum length
-            style: Summary style
-
-        Returns:
-            Formatted prompt
-        """
-        style_instructions = {
-            "concise": "Provide a concise summary highlighting key points.",
-            "detailed": "Provide a detailed summary covering all major topics.",
-            "bullet_points": "Provide a summary in bullet point format."
-        }
-
-        instruction = style_instructions.get(style, style_instructions["concise"])
-
-        prompt = f"""Please summarize the following text. {instruction}
-Maximum length: approximately {max_length} words.
-
-Text:
-{text}
-
-Summary:"""
-
-        return prompt
+        result = await self.execute_tool(
+            LLMToolType.SUMMARIZATION,
+            {
+                "text": text,
+                "max_length": max_length,
+                "style": style
+            }
+        )
+        return result.get("summary", "")
 
     async def extract_entities(
         self,
         text: str,
         entity_types: Optional[List[str]] = None
-    ) -> List[Entity]:
+    ) -> List[Dict[str, Any]]:
         """Extract named entities from text
 
         Args:
             text: Text to extract entities from
-            entity_types: Specific entity types to extract (e.g., PERSON, ORGANIZATION, LOCATION)
+            entity_types: Specific entity types to extract
 
         Returns:
             List of extracted entities
         """
-        with self.traced_operation(
-            "extract_entities",
-            text_length=len(text),
-            entity_types=entity_types
-        ):
-            try:
-                if not text:
-                    return []
+        result = await self.execute_tool(
+            LLMToolType.ENTITY_EXTRACTION,
+            {
+                "text": text,
+                "entity_types": entity_types
+            }
+        )
 
-                # Default entity types if not specified
-                if entity_types is None:
-                    entity_types = [
-                        "PERSON", "ORGANIZATION", "LOCATION", "DATE",
-                        "MONEY", "PRODUCT", "EVENT", "EMAIL", "PHONE"
-                    ]
+        # Convert to old Entity format for compatibility
+        entities = result.get("entities", [])
 
-                # Prepare extraction prompt
-                prompt = self._prepare_entity_prompt(text, entity_types)
+        # Create Entity-like dictionaries
+        entity_objects = []
+        for entity_dict in entities:
+            # The tool already returns dictionaries with the right format
+            entity_objects.append(entity_dict)
 
-                # Call LLM API
-                response = await self._call_llm(prompt, temperature=0.3)
-
-                # Parse entities from response
-                entities = self._parse_entities(response)
-
-                self.logger.info(f"Extracted {len(entities)} entities from text")
-                return entities
-
-            except Exception as e:
-                self.logger.error(f"Failed to extract entities: {str(e)}")
-                raise
-
-    def _prepare_entity_prompt(self, text: str, entity_types: List[str]) -> str:
-        """Prepare prompt for entity extraction
-
-        Args:
-            text: Text to analyze
-            entity_types: Entity types to extract
-
-        Returns:
-            Formatted prompt
-        """
-        types_str = ", ".join(entity_types)
-
-        prompt = f"""Extract the following types of entities from the text: {types_str}
-
-Return the result as a JSON array with objects containing:
-- "text": the entity text
-- "type": the entity type
-- "confidence": confidence score (0-1)
-
-Text:
-{text}
-
-Entities (JSON format):"""
-
-        return prompt
-
-    def _parse_entities(self, response: str) -> List[Entity]:
-        """Parse entities from LLM response
-
-        Args:
-            response: LLM response containing entities
-
-        Returns:
-            List of Entity objects
-        """
-        entities = []
-
-        # Try to parse as JSON
-        if response.strip().startswith('['):
-            try:
-                entity_data = json.loads(response)
-                for item in entity_data:
-                    entity = Entity(
-                        text=item.get("text", ""),
-                        entity_type=item.get("type", "UNKNOWN"),
-                        confidence=item.get("confidence", 1.0)
-                    )
-                    entities.append(entity)
-                return entities  # Return early if JSON parsing succeeded
-            except json.JSONDecodeError:
-                pass  # Fall through to text parsing
-
-        # Fallback: parse as text lines
-        lines = response.strip().split('\n')
-        for line in lines:
-            if ':' in line:
-                parts = line.split(':', 1)
-                if len(parts) == 2:
-                    entity_type = parts[0].strip().upper()
-                    if entity_type == "ORGANIZATION":
-                        entity_type = "ORG"
-                    entity_text = parts[1].strip()
-                    entities.append(Entity(
-                        text=entity_text,
-                        entity_type=entity_type,
-                        confidence=1.0
-                    ))
-
-        return entities
+        return entity_objects
 
     async def classify_document(
         self,
@@ -372,110 +313,22 @@ Entities (JSON format):"""
 
         Args:
             text: Document text to classify
-            categories: Possible categories (uses default if not provided)
+            categories: Possible categories
 
         Returns:
             Tuple of (category, confidence)
         """
-        with self.traced_operation(
-            "classify_document",
-            text_length=len(text),
-            categories=categories
-        ):
-            try:
-                if not text:
-                    return ("UNKNOWN", 0.0)
-
-                # Default categories if not provided
-                if categories is None:
-                    categories = [
-                        "Technical Documentation",
-                        "Business Report",
-                        "Legal Document",
-                        "Financial Statement",
-                        "Research Paper",
-                        "News Article",
-                        "Personal Communication",
-                        "Marketing Material"
-                    ]
-
-                # Prepare classification prompt
-                prompt = self._prepare_classification_prompt(text, categories)
-
-                # Call LLM API
-                response = await self._call_llm(prompt, temperature=0.3)
-
-                # Parse classification result
-                category, confidence = self._parse_classification(response, categories)
-
-                self.logger.info(f"Classified document as {category} with confidence {confidence}")
-                return (category, confidence)
-
-            except Exception as e:
-                self.logger.error(f"Failed to classify document: {str(e)}")
-                raise
-
-    def _prepare_classification_prompt(self, text: str, categories: List[str]) -> str:
-        """Prepare prompt for document classification
-
-        Args:
-            text: Text to classify
-            categories: Available categories
-
-        Returns:
-            Formatted prompt
-        """
-        categories_str = "\n".join(f"- {cat}" for cat in categories)
-
-        prompt = f"""Classify the following text into one of these categories:
-{categories_str}
-
-Return your answer in the format:
-Category: [chosen category]
-Confidence: [0.0-1.0]
-
-Text:
-{text[:2000]}  # Limit text length for classification
-
-Classification:"""
-
-        return prompt
-
-    def _parse_classification(
-        self,
-        response: str,
-        categories: List[str]
-    ) -> Tuple[str, float]:
-        """Parse classification result from LLM response
-
-        Args:
-            response: LLM response
-            categories: Valid categories
-
-        Returns:
-            Tuple of (category, confidence)
-        """
-        category = "UNKNOWN"
-        confidence = 0.0
-
-        lines = response.strip().split('\n')
-        for line in lines:
-            if "Category:" in line or "category:" in line:
-                cat_text = line.split(':')[1].strip()
-                # Find best matching category
-                for cat in categories:
-                    if cat.lower() in cat_text.lower() or cat_text.lower() in cat.lower():
-                        category = cat
-                        break
-            elif "Confidence:" in line or "confidence:" in line:
-                try:
-                    conf_text = line.split(':')[1].strip()
-                    confidence = float(conf_text.replace('%', '').strip()) / 100 if '%' in conf_text else float(conf_text)
-                    confidence = min(1.0, max(0.0, confidence))
-                except ValueError:
-                    confidence = 0.8  # Default confidence
-
-        return (category, confidence)
+        result = await self.execute_tool(
+            LLMToolType.CLASSIFICATION,
+            {
+                "text": text,
+                "categories": categories
+            }
+        )
+        return (
+            result.get("category", "UNKNOWN"),
+            result.get("confidence", 0.0)
+        )
 
     async def detect_language(
         self,
@@ -489,55 +342,14 @@ Classification:"""
         Returns:
             Tuple of (language_code, confidence)
         """
-        with self.traced_operation(
-            "detect_language",
-            text_length=len(text)
-        ):
-            try:
-                if not text:
-                    return ("unknown", 0.0)
-
-                # Prepare language detection prompt
-                prompt = f"""Detect the language of the following text.
-Return only the ISO 639-1 language code (e.g., 'en' for English, 'es' for Spanish, 'fr' for French, 'de' for German, 'zh' for Chinese, 'ja' for Japanese, etc.)
-and a confidence score from 0.0 to 1.0.
-
-Format your response exactly as:
-Language: [code]
-Confidence: [score]
-
-Text to analyze (first 500 characters):
-{text[:500]}
-
-Response:"""
-
-                # Call LLM API with low temperature for consistency
-                response = await self._call_llm(prompt, temperature=0.1, max_tokens=50)
-
-                # Parse response
-                language = "en"  # Default to English
-                confidence = 0.5
-
-                lines = response.strip().split('\n')
-                for line in lines:
-                    if "Language:" in line or "language:" in line:
-                        lang_text = line.split(':')[1].strip().lower()
-                        # Extract just the language code
-                        language = lang_text[:2]
-                    elif "Confidence:" in line or "confidence:" in line:
-                        try:
-                            conf_text = line.split(':')[1].strip()
-                            confidence = float(conf_text.replace('%', '').strip()) / 100 if '%' in conf_text else float(conf_text)
-                            confidence = min(1.0, max(0.0, confidence))
-                        except ValueError:
-                            confidence = 0.8
-
-                self.logger.info(f"Detected language: {language} with confidence {confidence}")
-                return (language, confidence)
-
-            except Exception as e:
-                self.logger.error(f"Failed to detect language: {str(e)}")
-                return ("unknown", 0.0)
+        result = await self.execute_tool(
+            LLMToolType.LANGUAGE_DETECTION,
+            {"text": text}
+        )
+        return (
+            result.get("language", "unknown"),
+            result.get("confidence", 0.0)
+        )
 
     async def answer_question(
         self,
@@ -555,198 +367,15 @@ Response:"""
         Returns:
             Answer to the question
         """
-        with self.traced_operation(
-            "answer_question",
-            context_length=len(context),
-            question=question[:100]
-        ):
-            try:
-                if not context or not question:
-                    return "Insufficient information provided."
-
-                # Prepare Q&A prompt
-                prompt = self._prepare_qa_prompt(context, question, max_length)
-
-                # Call LLM API
-                answer = await self._call_llm(prompt, max_tokens=max_length * 2)
-
-                self.logger.info(f"Answered question: {question[:50]}...")
-                return answer
-
-            except Exception as e:
-                self.logger.error(f"Failed to answer question: {str(e)}")
-                raise
-
-    def _prepare_qa_prompt(self, context: str, question: str, max_length: int) -> str:
-        """Prepare prompt for question answering
-
-        Args:
-            context: Context text
-            question: Question to answer
-            max_length: Maximum answer length
-
-        Returns:
-            Formatted prompt
-        """
-        prompt = f"""Based on the following context, please answer the question.
-If the answer cannot be found in the context, say "Information not found in the provided context."
-Maximum answer length: {max_length} words.
-
-Context:
-{context}
-
-Question: {question}
-
-Answer:"""
-
-        return prompt
-
-    async def _call_llm(
-        self,
-        prompt: str,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None
-    ) -> str:
-        """Call the LLM API (placeholder for actual implementation)
-
-        Args:
-            prompt: Prompt to send to LLM
-            max_tokens: Maximum tokens in response
-            temperature: Temperature for generation
-
-        Returns:
-            LLM response
-        """
-        max_tokens = max_tokens or self.max_tokens
-        temperature = temperature or self.temperature
-
-        try:
-            if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
-                response = await self.anthropic_client.messages.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                return response.content[0].text
-
-            elif self.provider == LLMProvider.OPENAI and self.openai_client:
-                response = await self.openai_client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                return response.choices[0].message.content
-
-            else:
-                # Fallback for testing without API keys
-                self.logger.warning(f"No API client configured for {self.provider}, using mock response")
-                await asyncio.sleep(0.1)  # Simulate API latency
-
-                if "summary" in prompt.lower():
-                    return "This is a generated summary of the provided text highlighting the key points and main ideas."
-                elif "entities" in prompt.lower():
-                    return '[{"text": "Example Entity", "type": "ORG", "confidence": 0.9}]'
-                elif "classify" in prompt.lower():
-                    return "Category: Technical Documentation\nConfidence: 0.85"
-                elif "question" in prompt.lower():
-                    return "Based on the provided context, the answer to your question is..."
-                else:
-                    return "Generated response from LLM."
-
-        except Exception as e:
-            self.logger.error(f"LLM API call failed: {str(e)}")
-            raise
-
-    async def _call_llm_with_file(
-        self,
-        prompt: str,
-        file_path: Optional[str] = None,
-        file_content: Optional[bytes] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None
-    ) -> str:
-        """Call the LLM API with file attachment support
-
-        Args:
-            prompt: Text prompt to send to LLM
-            file_path: Path to file to attach (for reading)
-            file_content: Raw file content (alternative to file_path)
-            max_tokens: Maximum tokens in response
-            temperature: Temperature for generation
-
-        Returns:
-            LLM response
-        """
-        import base64
-
-        max_tokens = max_tokens or self.max_tokens
-        temperature = temperature or self.temperature
-
-        try:
-            # Read file if path provided
-            if file_path and not file_content:
-                with open(file_path, 'rb') as f:
-                    file_content = f.read()
-
-            if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
-                # Claude supports PDF attachments directly
-                messages = []
-
-                if file_content:
-                    # Convert PDF to base64 for Claude
-                    file_base64 = base64.b64encode(file_content).decode('utf-8')
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "document",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "application/pdf",
-                                    "data": file_base64
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ]
-                    })
-                else:
-                    messages.append({"role": "user", "content": prompt})
-
-                response = await self.anthropic_client.messages.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    messages=messages
-                )
-                return response.content[0].text
-
-            elif self.provider == LLMProvider.OPENAI and self.openai_client:
-                # OpenAI doesn't support PDFs directly, so we'll need to extract text first
-                if file_content:
-                    # Note: For OpenAI, caller should extract text from PDF first
-                    self.logger.warning("OpenAI doesn't support direct PDF attachments. Extract text first.")
-
-                response = await self.openai_client.chat.completions.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                return response.choices[0].message.content
-
-            else:
-                # Fallback for local/mock mode
-                return f"Processed document with prompt: {prompt[:100]}..."
-
-        except Exception as e:
-            self.logger.error(f"LLM API call with file failed: {str(e)}")
-            raise
-
+        result = await self.execute_tool(
+            LLMToolType.QUESTION_ANSWERING,
+            {
+                "context": context,
+                "question": question,
+                "max_length": max_length
+            }
+        )
+        return result.get("answer", "")
 
     async def generate_embeddings(
         self,
@@ -762,36 +391,14 @@ Answer:"""
         Returns:
             List of embedding values
         """
-        with self.traced_operation(
-            "generate_embeddings",
-            text_length=len(text),
-            model=model
-        ):
-            try:
-                if self.openai_client:
-                    # Use OpenAI for embeddings (Anthropic doesn't have embeddings API)
-                    response = await self.openai_client.embeddings.create(
-                        model=model,
-                        input=text
-                    )
-                    embeddings = response.data[0].embedding
-                    self.logger.info(f"Generated embeddings of dimension {len(embeddings)}")
-                    return embeddings
-                else:
-                    # Fallback for testing without API keys
-                    self.logger.warning("No OpenAI client configured, using mock embeddings")
-                    await asyncio.sleep(0.1)
-
-                    # Return mock embeddings (normally would be 1536 dimensions for ada-002)
-                    import random
-                    embeddings = [random.random() for _ in range(384)]  # Smaller for demo
-
-                    self.logger.info(f"Generated mock embeddings of dimension {len(embeddings)}")
-                    return embeddings
-
-            except Exception as e:
-                self.logger.error(f"Failed to generate embeddings: {str(e)}")
-                raise
+        result = await self.execute_tool(
+            LLMToolType.EMBEDDING,
+            {
+                "text": text,
+                "model": model
+            }
+        )
+        return result.get("embeddings", [])
 
     async def process_document_with_ai(
         self,
@@ -802,7 +409,7 @@ Answer:"""
 
         Args:
             document: Document to process
-            operations: List of operations to perform (summary, entities, classify, embeddings)
+            operations: List of operations to perform
 
         Returns:
             Updated document with AI-generated content
@@ -823,7 +430,7 @@ Answer:"""
                     entities = await self.extract_entities(text)
                     if document.content.structured_data is None:
                         document.content.structured_data = {}
-                    document.content.structured_data["entities"] = [e.to_dict() for e in entities]
+                    document.content.structured_data["entities"] = entities
 
                 if "classify" in operations:
                     category, confidence = await self.classify_document(text)
@@ -835,7 +442,7 @@ Answer:"""
                     }
 
                 if "embeddings" in operations:
-                    embeddings = await self.generate_embeddings(text[:1000])  # Limit text for embeddings
+                    embeddings = await self.generate_embeddings(text[:1000])
                     document.content.embeddings = embeddings
 
                 # Add AI processing to tools list
@@ -848,31 +455,54 @@ Answer:"""
                 self.logger.error(f"Failed to process document with AI: {str(e)}")
                 raise
 
-    async def health_check(self) -> Dict[str, Any]:
-        """Check service health
+    def get_available_tools(self) -> List[str]:
+        """Get list of available LLM tools
 
         Returns:
-            Health status dictionary
+            List of tool names
+        """
+        return [tool.value for tool in ToolRegistry.get_available_tools()]
+
+    def get_tool_info(self) -> Dict[str, Dict[str, Any]]:
+        """Get information about all available tools
+
+        Returns:
+            Dictionary with tool information
+        """
+        return ToolRegistry.get_tool_info()
+
+    async def health_check(self) -> Dict[str, Any]:
+        """Check service health with dynamic capability detection
+
+        Returns:
+            Health status dictionary with dynamically generated capabilities
         """
         with self.traced_operation("health_check"):
             try:
-                # Check API availability (mock for now)
-                api_available = True  # Would check actual API connection
+                # Check API availability
+                api_available = (
+                    self.llm_client.openai_client is not None or
+                    self.llm_client.anthropic_client is not None
+                )
+
+                # Get available tools dynamically
+                available_tools = self.get_available_tools()
+
+                # Dynamically generate capabilities from registered tools
+                capabilities = self._get_dynamic_capabilities()
 
                 health_status = {
                     "service": "LLMService",
                     "status": "healthy" if api_available else "degraded",
                     "provider": self.provider.value,
-                    "capabilities": [
-                        "summarization",
-                        "entity_extraction",
-                        "classification",
-                        "question_answering",
-                        "embeddings"
-                    ],
+                    "architecture": "tool-based",  # Could be from config
+                    "available_tools": available_tools,
+                    "tool_count": len(available_tools),
+                    "capabilities": capabilities,
                     "configuration": {
-                        "max_tokens": self.max_tokens,
-                        "temperature": self.temperature
+                        "max_tokens": self.llm_client.max_tokens,
+                        "temperature": self.llm_client.temperature,
+                        "model": self.llm_client.model
                     },
                     "timestamp": datetime.utcnow().isoformat()
                 }
@@ -888,6 +518,37 @@ Answer:"""
                     "error": str(e),
                     "timestamp": datetime.utcnow().isoformat()
                 }
+
+    def _get_dynamic_capabilities(self) -> List[str]:
+        """Generate capabilities list dynamically from registered tools
+
+        Returns:
+            Sorted list of unique capabilities derived from tool metadata
+        """
+        capabilities = set()
+
+        # Map tool capabilities to user-friendly service capabilities
+        capability_mapping = {
+            ToolCapability.TEXT_GENERATION: ["summarization", "markdown_formatting"],
+            ToolCapability.TEXT_ANALYSIS: ["entity_extraction", "language_detection"],
+            ToolCapability.TEXT_TRANSFORMATION: ["markdown_formatting"],
+            ToolCapability.CLASSIFICATION: ["classification"],
+            ToolCapability.QUESTION_ANSWERING: ["question_answering"],
+            ToolCapability.EMBEDDING_GENERATION: ["embeddings"],
+            ToolCapability.EXTRACTION: ["entity_extraction"]
+        }
+
+        # Get capabilities from all registered tools
+        for tool_type in ToolRegistry.get_available_tools():
+            metadata = ToolRegistry.get_tool_metadata(tool_type)
+            if metadata:
+                # Add capabilities based on tool metadata
+                for capability in metadata.capabilities:
+                    # Get mapped capabilities or use capability value as fallback
+                    mapped_caps = capability_mapping.get(capability, [capability.value])
+                    capabilities.update(mapped_caps)
+
+        return sorted(list(capabilities))
 
 
 # Register with factory
