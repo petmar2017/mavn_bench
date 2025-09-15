@@ -92,6 +92,92 @@ class LLMService(BaseService):
 
         self.logger.info(f"Initialized LLMService with provider: {provider}")
 
+    async def text_to_markdown(
+        self,
+        text: str,
+        preserve_structure: bool = True
+    ) -> str:
+        """Convert plain text to well-formatted markdown
+
+        Args:
+            text: Plain text to convert
+            preserve_structure: Whether to preserve original structure
+
+        Returns:
+            Formatted markdown text
+        """
+        with self.traced_operation("text_to_markdown", text_length=len(text)):
+            try:
+                # For simple text files, enhance with markdown formatting
+                prompt = """
+                Convert this plain text to well-formatted markdown.
+                Rules:
+                1. Add appropriate headers (##) for sections
+                2. Use bullet points or numbered lists where appropriate
+                3. Add emphasis (bold/italic) for important terms
+                4. Preserve code blocks if any (use ```)
+                5. Keep the original content intact, just improve formatting
+                6. Make it easy to read and navigate
+
+                Text:
+                {text}
+
+                Return only the formatted markdown, no explanations.
+                """.strip()
+
+                if self.provider == LLMProvider.ANTHROPIC and self.anthropic_client:
+                    response = await self.anthropic_client.messages.create(
+                        model=self.model,
+                        max_tokens=self.max_tokens,
+                        temperature=0.3,  # Lower temperature for consistent formatting
+                        messages=[
+                            {"role": "user", "content": prompt.format(text=text[:8000])}  # Limit text length
+                        ]
+                    )
+                    return response.content[0].text.strip()
+
+                elif self.provider == LLMProvider.OPENAI and self.openai_client:
+                    response = await self.openai_client.chat.completions.create(
+                        model=self.model,
+                        max_tokens=self.max_tokens,
+                        temperature=0.3,
+                        messages=[
+                            {"role": "system", "content": "You are a markdown formatting expert."},
+                            {"role": "user", "content": prompt.format(text=text[:8000])}
+                        ]
+                    )
+                    return response.choices[0].message.content.strip()
+
+                else:
+                    # Fallback: Basic markdown formatting
+                    self.logger.warning("No LLM provider available, using basic formatting")
+                    lines = text.split('\n')
+                    formatted = []
+
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            formatted.append('')
+                        elif line.isupper() and len(line) < 100:
+                            # Likely a header
+                            formatted.append(f"## {line.title()}")
+                        elif line.startswith(('- ', '* ', '• ')):
+                            # Already a list item
+                            formatted.append(line)
+                        elif line.startswith(tuple(str(i) + '.' for i in range(10))):
+                            # Numbered list
+                            formatted.append(line)
+                        else:
+                            # Regular paragraph
+                            formatted.append(line)
+
+                    return '\n'.join(formatted)
+
+            except Exception as e:
+                self.logger.error(f"Failed to convert text to markdown: {str(e)}")
+                # Return original text on error
+                return text
+
     async def generate_summary(
         self,
         text: str,

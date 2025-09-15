@@ -11,6 +11,7 @@ from ..storage.storage_factory import StorageFactory, StorageType
 class ServiceType(str, Enum):
     """Supported service types"""
     DOCUMENT = "document"
+    DOCUMENT_PROCESSOR = "document_processor"  # New processor for document handling
     PDF = "pdf"
     TRANSCRIPTION = "transcription"
     WEB_SCRAPING = "web_scraping"

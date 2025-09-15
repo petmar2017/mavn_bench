@@ -123,8 +123,7 @@ class RedisQueueService(BaseService):
 
                 # Update document status to PENDING
                 document.metadata.processing_stage = ProcessingStage.PENDING
-                document.metadata.processing_started_at = None
-                document.metadata.processing_completed_at = None
+                # Store processing timestamps separately in Redis (not in metadata)
 
                 # Save document to storage
                 await self.storage.save(document)
@@ -181,8 +180,19 @@ class RedisQueueService(BaseService):
 
                     # Update status to PROCESSING
                     document.metadata.processing_stage = ProcessingStage.PROCESSING
-                    document.metadata.processing_started_at = datetime.utcnow()
-                    document.metadata.processor_id = self.worker_id
+
+                    # Store processing metadata in Redis separately (not in document metadata)
+                    start_time = datetime.utcnow()
+                    await self.redis_client.set(
+                        f"processing_started:{document_id}",
+                        start_time.isoformat(),
+                        ex=86400  # 1 day TTL
+                    )
+                    await self.redis_client.set(
+                        f"processor_id:{document_id}",
+                        self.worker_id,
+                        ex=86400  # 1 day TTL
+                    )
 
                     # Save updated status
                     await self.storage.save(document)
@@ -190,8 +200,8 @@ class RedisQueueService(BaseService):
                     # Add to processing set with timeout timestamp
                     processing_data = json.dumps({
                         "worker_id": self.worker_id,
-                        "started_at": datetime.utcnow().isoformat(),
-                        "timeout_at": (datetime.utcnow() + timedelta(seconds=self.DEFAULT_PROCESSING_TIMEOUT)).isoformat()
+                        "started_at": start_time.isoformat(),
+                        "timeout_at": (start_time + timedelta(seconds=self.DEFAULT_PROCESSING_TIMEOUT)).isoformat()
                     })
 
                     await self.redis_client.hset(
@@ -230,12 +240,20 @@ class RedisQueueService(BaseService):
 
                 # Update status to COMPLETED
                 document.metadata.processing_stage = ProcessingStage.COMPLETED
-                document.metadata.processing_completed_at = datetime.utcnow()
 
-                # Calculate processing duration
-                if document.metadata.processing_started_at:
-                    duration = (document.metadata.processing_completed_at -
-                               document.metadata.processing_started_at).total_seconds()
+                # Store completion time in Redis separately
+                completion_time = datetime.utcnow()
+                await self.redis_client.set(
+                    f"processing_completed:{document_id}",
+                    completion_time.isoformat(),
+                    ex=86400  # 1 day TTL
+                )
+
+                # Get start time from Redis if available
+                start_time_str = await self.redis_client.get(f"processing_started:{document_id}")
+                if start_time_str:
+                    start_time = datetime.fromisoformat(start_time_str)
+                    duration = (completion_time - start_time).total_seconds()
                     self.logger.info(f"Document {document_id} processed in {duration:.2f} seconds")
 
                 # Save updated document
@@ -272,11 +290,28 @@ class RedisQueueService(BaseService):
                     self.logger.error(f"Document {document_id} not found")
                     return False
 
-                # Update retry count
-                retry_count = document.metadata.retry_count + 1
-                document.metadata.retry_count = retry_count
-                document.metadata.last_error = error
-                document.metadata.processing_completed_at = datetime.utcnow()
+                # Get retry count from Redis (not from metadata)
+                retry_key = f"retry_count:{document_id}"
+                current_retry = await self.redis_client.get(retry_key)
+                retry_count = int(current_retry) + 1 if current_retry else 1
+
+                # Store updated retry count in Redis
+                await self.redis_client.set(retry_key, str(retry_count), ex=86400)  # 1 day TTL
+
+                # Store error in Redis separately (last_error doesn't exist in metadata)
+                await self.redis_client.set(
+                    f"last_error:{document_id}",
+                    error,
+                    ex=86400  # 1 day TTL
+                )
+
+                # Store processing completion time in Redis
+                completion_time = datetime.utcnow()
+                await self.redis_client.set(
+                    f"processing_completed:{document_id}",
+                    completion_time.isoformat(),
+                    ex=86400  # 1 day TTL
+                )
 
                 # Remove from processing set
                 await self.redis_client.hdel(self.PROCESSING_KEY, document_id)
@@ -373,7 +408,12 @@ class RedisQueueService(BaseService):
                                 document = await self.storage.load(document_id)
                                 if document:
                                     document.metadata.processing_stage = ProcessingStage.PENDING
-                                    document.metadata.last_error = f"Worker {worker_id} timed out"
+                                    # Store error in Redis separately (last_error doesn't exist in metadata)
+                                    await self.redis_client.set(
+                                        f"last_error:{document_id}",
+                                        f"Worker {worker_id} timed out",
+                                        ex=86400  # 1 day TTL
+                                    )
                                     await self.storage.save(document)
 
                                 recovered += 1

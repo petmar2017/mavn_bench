@@ -64,6 +64,9 @@ async def lifespan(app: FastAPI):
     from ..services.queue_service import queue_service
     from .routers.websocket import manager
 
+    # Import DocumentProcessor to register it
+    from ..services import document_processor
+
     # Inject WebSocket service into queue service
     queue_service.set_websocket_service(manager)
 

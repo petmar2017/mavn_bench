@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Document Processing Architecture Refactoring (2025-01-15)
+- **DocumentProcessor Service Implementation**:
+  - Created new `DocumentProcessor` service following factory/service pattern
+  - Centralized all document type processing logic in one service
+  - Eliminated code duplication between memory and Redis queue processing
+  - Added support for multiple document types (PDF, Text, JSON, XML, CSV, Excel, Media, Webpage)
+  - Integrated with existing services (PDFService, TranscriptionService, WebScrapingService, LLMService)
+  - Registered as `ServiceType.DOCUMENT_PROCESSOR` in ServiceFactory
+
+- **Queue Service Refactoring**:
+  - Simplified queue service to focus solely on queue management
+  - Removed duplicated document processing logic (now in DocumentProcessor)
+  - Updated to use DocumentProcessor for all document type handling
+  - Improved separation of concerns between queue management and document processing
+  - Better error handling with WebSocket notifications for failed processing
+
+- **Redis Queue Service Fixes**:
+  - Fixed "DocumentMetadata has no field" errors for `processing_started_at`, `retry_count`, `last_error`
+  - Moved processing metadata to separate Redis keys instead of trying to add to DocumentMetadata
+  - Implemented proper retry count tracking in Redis with TTL
+  - Fixed error message storage using Redis keys instead of non-existent metadata fields
+  - Improved stale job recovery with proper Redis metadata handling
+
+- **LLM Service Enhancements**:
+  - Implemented `text_to_markdown()` function for converting plain text to formatted markdown
+  - Added intelligent markdown formatting with headers, lists, and emphasis
+  - Included fallback formatting when LLM is unavailable
+  - Supports both Anthropic Claude and OpenAI providers
+  - Lower temperature (0.3) for consistent formatting output
+
+- **Error Handling Improvements**:
+  - Added comprehensive error handling in document processing pipeline
+  - Implemented WebSocket error notifications for immediate UI feedback
+  - Added document status updates to FAILED when processing errors occur
+  - Better exception handling with proper storage service access
+  - Improved error recovery with graceful fallbacks
+
 ### WebSocket and Document Upload Fixes (2025-01-14 - Late Night Session 2)
 - **WebSocket Connection Fixes**:
   - Fixed WebSocket URL configuration to properly connect to backend port 8000 instead of frontend port 5173

@@ -602,69 +602,36 @@ class QueueService(BaseService):
         try:
             logger.info(f"Processing document {document_id} from Redis queue")
 
-            # Import here to avoid circular dependency
+            # Use the DocumentProcessor for all processing
             from src.services.service_factory import ServiceFactory, ServiceType
             from src.services.document_service import DocumentService
-            from src.models.document import DocumentType
-            import aiofiles
 
             # Get services
             doc_service = DocumentService()
-            pdf_service = ServiceFactory.create(ServiceType.PDF)
-            llm_service = ServiceFactory.create(ServiceType.LLM)
+            processor = ServiceFactory.create(ServiceType.DOCUMENT_PROCESSOR)
 
-            # Determine file type
-            file_extension = file_path.split('.')[-1].lower()
-            doc_type = {
-                'pdf': DocumentType.PDF,
-                'txt': DocumentType.MARKDOWN,
-                'md': DocumentType.MARKDOWN,
-                'json': DocumentType.JSON,
-                'xml': DocumentType.XML,
-                'csv': DocumentType.CSV,
-                'xls': DocumentType.EXCEL,
-                'xlsx': DocumentType.EXCEL
-            }.get(file_extension, DocumentType.MARKDOWN)
+            # Define progress callback for WebSocket updates
+            async def progress_callback(progress: int, message: str):
+                logger.info(f"Document {document_id}: {progress}% - {message}")
+                if self._websocket_service:
+                    await self._websocket_service.broadcast({
+                        "type": "document:processing_progress",
+                        "data": {
+                            "document_id": document_id,
+                            "progress": progress,
+                            "message": message
+                        }
+                    })
 
-            # Process based on file type
-            if doc_type == DocumentType.PDF:
-                logger.info(f"Processing PDF: {file_path}")
-                formatted_content = await pdf_service.pdf_to_markdown(file_path)
-                raw_text = formatted_content
-            else:
-                # Read file content
-                logger.info(f"Reading file: {file_path}")
-                async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
-                    raw_text = await f.read()
-
-                # Process with LLM for markdown conversion
-                logger.info(f"Converting to markdown using LLM: {file_path}")
-                formatted_content = await asyncio.wait_for(
-                    llm_service.text_to_markdown(raw_text),
-                    timeout=30
-                )
-
-            # Generate summary and detect language
-            logger.info(f"Generating summary for: {document_id}")
-            summary = await asyncio.wait_for(
-                llm_service.generate_summary(raw_text[:5000]),
-                timeout=20
+            # Process the document using the centralized processor
+            processed_document = await processor.process_document(
+                file_path,
+                document,
+                progress_callback
             )
 
-            logger.info(f"Detecting language for: {document_id}")
-            language = await asyncio.wait_for(
-                llm_service.detect_language(raw_text[:1000]),
-                timeout=10
-            )
-
-            # Update document with processed content
-            document.content.formatted_content = formatted_content
-            document.content.raw_text = raw_text
-            document.metadata.summary = summary
-            document.metadata.language = language
-
-            # Save updated document
-            await doc_service.storage.save(document)
+            # Save the processed document
+            await doc_service.storage.save(processed_document)
 
             # Mark as completed in Redis queue
             await self.redis_queue.mark_completed(document_id)
@@ -691,20 +658,58 @@ class QueueService(BaseService):
             logger.info(f"Document {document_id} processed successfully via Redis queue")
 
         except Exception as e:
-            logger.error(f"Error processing document {document_id}: {e}")
+            error_msg = f"Error processing document {document_id}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
 
-            # Mark as failed in Redis queue
-            await self.redis_queue.mark_failed(document_id, str(e))
+            # Mark as failed in Redis queue with better error handling
+            try:
+                await self.redis_queue.mark_failed(document_id, str(e))
+            except Exception as mark_error:
+                logger.error(f"Failed to mark document as failed: {str(mark_error)}")
 
-            # Send failure notification
+            # Send detailed failure notification for better UI feedback
             if self._websocket_service:
                 await self._websocket_service.broadcast({
                     "type": "document:processing_failed",
                     "data": {
                         "document_id": document_id,
-                        "error": str(e)
+                        "error": str(e),
+                        "stage": "processing",
+                        "timestamp": datetime.utcnow().isoformat()
                     }
                 })
+
+            # Update document status to failed for immediate UI feedback
+            try:
+                # Get storage service
+                from src.storage.storage_factory import StorageFactory, StorageType
+                storage = StorageFactory.create(StorageType.REDIS)
+
+                document = await storage.load(document_id)
+                if document:
+                    document.metadata.processing_stage = ProcessingStage.FAILED
+                    # Store error in Redis separately (last_error doesn't exist in metadata)
+                    import redis.asyncio as redis
+                    redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+                    await redis_client.set(
+                        f"last_error:{document_id}",
+                        str(e),
+                        ex=86400  # 1 day TTL
+                    )
+                    await redis_client.close()
+                    await storage.save(document)
+                    # Send updated document status
+                    if self._websocket_service:
+                        await self._websocket_service.broadcast({
+                            "type": "document:status_changed",
+                            "data": {
+                                "document_id": document_id,
+                                "status": "failed",
+                                "error": str(e)
+                            }
+                        })
+            except Exception as update_error:
+                logger.error(f"Failed to update document status: {str(update_error)}")
 
             # Clean up temp file even on failure
             import os
