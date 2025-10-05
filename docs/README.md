@@ -34,33 +34,40 @@
   - Common patterns
   - Debugging tips
 
+### Changelogs & History
+- **[CHANGELOG_FRONTEND_REFACTOR.md](CHANGELOG_FRONTEND_REFACTOR.md)** - Frontend refactoring (Oct 2025)
+  - Centralized type system
+  - Context-sensitive tools menu
+  - Selection pattern refactoring (BREAKING CHANGES)
+  - Migration guide and testing results
+
+### Debugging Guides
+- **[WEBSOCKET_DEBUGGING_GUIDE.md](WEBSOCKET_DEBUGGING_GUIDE.md)** - WebSocket troubleshooting
+  - Connection issues
+  - Event handling
+  - Real-time updates
+
 ## 🎯 Current Implementation Status
 
-### ✅ Phase 1: Core Infrastructure (COMPLETED)
-- Configuration management
-- Centralized logging
-- OpenTelemetry setup
-- Base service class
-- Document models
+### ✅ Phase 1-4: Backend & API (COMPLETED)
+- Core infrastructure (config, logging, telemetry)
+- Storage layer (filesystem, Redis)
+- Service layer (document, PDF, transcription, web scraping, LLM, search, MCP)
+- API layer (FastAPI endpoints, middleware, WebSocket)
 
-### 🚧 Phase 2: Storage Layer (CURRENT)
-**Files to implement:**
-```bash
-backend/src/storage/storage_factory.py      # Create factory
-backend/src/storage/filesystem_storage.py   # Complete implementation
-backend/src/storage/redis_storage.py        # Implement Redis adapter
-backend/tests/unit/test_storage/           # Write all tests
-```
+### ✅ Phase 5: Frontend (COMPLETED)
+- React 19 + TypeScript + Vite
+- Document management UI (upload, list, search, trash)
+- Document viewers (PDF, Word, Excel, JSON, Markdown)
+- Context-sensitive tools menu
+- Centralized type system
+- **BREAKING**: Metadata-only selection pattern
+- Comprehensive test coverage
 
-### ⏳ Phase 3: Service Layer (NEXT)
-1. Service Factory
-2. Document Service
-3. PDF Service
-4. Transcription Service
-5. Web Scraping Service
-6. LLM Service
-7. Search Services
-8. MCP Services
+### 🚧 Current Work
+- Bug fixes and refinements
+- Additional tool implementations
+- Performance optimizations
 
 ## 🔑 Key Patterns to Follow
 
@@ -162,6 +169,6 @@ make help
 5. **ALWAYS** achieve 80%+ test coverage
 
 ---
-**Last Updated**: September 13, 2025  
-**Current Phase**: Phase 2 - Storage Layer  
-**Next Action**: Complete FilesystemStorage and tests
+**Last Updated**: October 5, 2025
+**Current Phase**: Phase 5 - Frontend (COMPLETED)
+**Latest Change**: Selection pattern refactoring (BREAKING CHANGE)
