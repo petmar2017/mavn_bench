@@ -35,20 +35,28 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Mavn Bench API")
 
-    # Clean up temp directory on startup
+    # Clean up old temp files on startup (older than 1 hour)
     project_root = Path(__file__).parent.parent.parent.parent
     temp_dir = project_root / "temp"
     if temp_dir.exists():
-        # Remove all files in temp directory
+        # Remove only old files in temp directory (older than 1 hour)
+        import time
+        current_time = time.time()
+        one_hour_ago = current_time - 3600
+        cleaned_count = 0
         for item in temp_dir.iterdir():
             try:
-                if item.is_file():
+                # Check file modification time
+                if item.is_file() and item.stat().st_mtime < one_hour_ago:
                     item.unlink()
-                elif item.is_dir():
+                    cleaned_count += 1
+                elif item.is_dir() and item.stat().st_mtime < one_hour_ago:
                     shutil.rmtree(item)
+                    cleaned_count += 1
             except Exception as e:
                 logger.warning(f"Failed to clean temp file {item}: {e}")
-        logger.info(f"Cleaned temp directory: {temp_dir}")
+        if cleaned_count > 0:
+            logger.info(f"Cleaned {cleaned_count} old files from temp directory: {temp_dir}")
     else:
         # Create temp directory if it doesn't exist
         temp_dir.mkdir(exist_ok=True)

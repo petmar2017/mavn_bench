@@ -3,12 +3,12 @@ import { FileText, AlertCircle, RotateCcw, Trash2, Code, Table, FileJson } from 
 import classNames from 'classnames';
 import { formatFileSize, formatLocalDateTime } from '../utils/format';
 import { documentApi } from '../services/api';
-import type { DocumentMessage } from '../services/api';
+import type { DocumentMessage, DocumentMetadata } from '../types/document';
 import styles from './DocumentList.module.css'; // Reuse same styles
 
 interface TrashListProps {
   refresh?: number;
-  onDocumentSelect?: (document: DocumentMessage) => void;
+  onDocumentSelect?: (metadata: DocumentMetadata) => void;
 }
 
 export const TrashList: React.FC<TrashListProps> = ({ refresh, onDocumentSelect }) => {
@@ -133,7 +133,7 @@ export const TrashList: React.FC<TrashListProps> = ({ refresh, onDocumentSelect 
               <div
                 key={doc.metadata.document_id}
                 className={classNames(styles.tile, styles.deletedTile)}
-                onClick={() => onDocumentSelect?.(doc)}
+                onClick={() => onDocumentSelect?.(doc.metadata)}
                 title={doc.metadata.name || 'Untitled Document'}
               >
                 <div className={styles.tileContent}>

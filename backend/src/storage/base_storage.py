@@ -92,7 +92,7 @@ class StorageAdapter(ABC):
         document_type: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
-    ) -> List[DocumentMetadata]:
+    ) -> List[DocumentMessage]:
         """List documents with optional filtering
 
         Args:
@@ -102,7 +102,7 @@ class StorageAdapter(ABC):
             offset: Number of results to skip
 
         Returns:
-            List of document metadata
+            List of document messages
         """
         pass
 

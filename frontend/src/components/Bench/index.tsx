@@ -5,12 +5,12 @@ import { DocumentBench, type DocumentBenchRef } from './DocumentBench';
 import { DocumentTabs } from './DocumentTabs';
 import { ToolsMenu } from '../ToolsMenu/ToolsMenu';
 import { documentApi } from '../../services/api';
-import type { DocumentMessage } from '../../services/api';
+import type { DocumentMessage, DocumentMetadata } from '../../types/document';
 import { logger } from '../../services/logging';
 import styles from './Bench.module.css';
 
 interface BenchProps {
-  selectedDocument: DocumentMessage | null;
+  selectedDocumentMetadata: DocumentMetadata | null;
   onClose?: () => void;
   onHistoryClick?: (documentId: string) => void;
 }
@@ -19,8 +19,8 @@ export interface BenchRef {
   closeDocument: (documentId: string) => void;
 }
 
-export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClose, onHistoryClick }, ref) => {
-  logger.debug('Bench component render', { selectedDocument });
+export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocumentMetadata, onClose, onHistoryClick }, ref) => {
+  logger.debug('Bench component render', { selectedDocumentMetadata });
   const [openDocuments, setOpenDocuments] = useState<DocumentMessage[]>([]);
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -56,23 +56,32 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
     closeDocument: handleCloseDocument
   }), [openDocuments, activeDocumentId]);
 
-  // Add selected document to open documents if not already open
+  // Fetch and add selected document to open documents if not already open
   useEffect(() => {
-    logger.debug('Bench useEffect triggered', { selectedDocument });
-    if (selectedDocument && selectedDocument.metadata) {
-      const docId = selectedDocument.metadata.document_id;
+    logger.debug('Bench useEffect triggered', { selectedDocumentMetadata });
+    if (selectedDocumentMetadata) {
+      const docId = selectedDocumentMetadata.document_id;
       logger.debug('Processing document', { documentId: docId });
       const isOpen = openDocuments.some(doc => doc.metadata.document_id === docId);
       logger.debug('Document open status', { documentId: docId, isOpen });
 
       if (!isOpen) {
-        setOpenDocuments(prev => [...prev, selectedDocument]);
-        logger.info('Added document to open documents', { documentId: docId });
+        // Fetch the full document
+        const fetchDocument = async () => {
+          try {
+            const fullDocument = await documentApi.getDocument(docId);
+            setOpenDocuments(prev => [...prev, fullDocument]);
+            logger.info('Fetched and added document to open documents', { documentId: docId });
+          } catch (error) {
+            logger.error('Failed to fetch document', { documentId: docId, error });
+          }
+        };
+        fetchDocument();
       }
       setActiveDocumentId(docId);
       logger.debug('Set active document', { documentId: docId });
     }
-  }, [selectedDocument, openDocuments]);
+  }, [selectedDocumentMetadata]);
 
   const handleSaveDocument = async (documentId: string) => {
     try {

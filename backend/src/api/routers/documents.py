@@ -171,29 +171,29 @@ async def list_deleted_documents(
         )
 
         # Filter to only show deleted documents
-        deleted_docs = [doc for doc in documents if getattr(doc, "deleted", False)]
+        deleted_docs = [doc for doc in documents if getattr(doc.metadata, "deleted", False)]
 
         # Convert to response format
         doc_responses = []
         for doc in deleted_docs[pagination.offset:pagination.offset + pagination.limit]:
             doc_response = {
                 "metadata": {
-                    "document_id": doc.document_id,
-                    "name": doc.name,
-                    "document_type": doc.document_type,
-                    "version": doc.version,
-                    "size": doc.file_size if hasattr(doc, 'file_size') and doc.file_size else 0,
-                    "created_at": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
-                    "updated_at": doc.updated_at.isoformat() if hasattr(doc.updated_at, 'isoformat') else str(doc.updated_at),
-                    "deleted_at": doc.deleted_at.isoformat() if hasattr(doc, 'deleted_at') and doc.deleted_at and hasattr(doc.deleted_at, 'isoformat') else str(doc.deleted_at) if hasattr(doc, 'deleted_at') and doc.deleted_at else None,
-                    "deleted_by": doc.deleted_by if hasattr(doc, 'deleted_by') else None,
+                    "document_id": doc.metadata.document_id,
+                    "name": doc.metadata.name,
+                    "document_type": doc.metadata.document_type,
+                    "version": doc.metadata.version,
+                    "size": doc.metadata.file_size if hasattr(doc.metadata, 'file_size') and doc.metadata.file_size else 0,
+                    "created_at": doc.metadata.created_at.isoformat() if hasattr(doc.metadata.created_at, 'isoformat') else str(doc.metadata.created_at),
+                    "updated_at": doc.metadata.updated_at.isoformat() if hasattr(doc.metadata.updated_at, 'isoformat') else str(doc.metadata.updated_at),
+                    "deleted_at": doc.metadata.deleted_at.isoformat() if hasattr(doc.metadata, 'deleted_at') and doc.metadata.deleted_at and hasattr(doc.metadata.deleted_at, 'isoformat') else str(doc.metadata.deleted_at) if hasattr(doc.metadata, 'deleted_at') and doc.metadata.deleted_at else None,
+                    "deleted_by": doc.metadata.deleted_by if hasattr(doc.metadata, 'deleted_by') else None,
                     "deleted": True,
-                    "user_id": doc.created_user,
-                    "tags": [],
-                    "processing_status": doc.processing_status  # Use the @property from metadata
+                    "user_id": doc.metadata.created_user,
+                    "tags": created.metadata.tags if created.metadata.tags else [],
+                    "processing_status": doc.metadata.processing_status  # Use the @property from metadata
                 },
                 "content": {
-                    "summary": doc.summary
+                    "summary": doc.metadata.summary
                 }
             }
             doc_responses.append(doc_response)
@@ -423,13 +423,13 @@ async def list_documents(
         # Log detailed information about each document
         logger.info(f"[API] list_documents - Retrieved {len(documents)} documents from service for user {user['user_id']}")
         for idx, doc in enumerate(documents):
-            logger.info(f"[API] Document {idx}: id={doc.document_id}, name={doc.name}, type={doc.document_type}, deleted={getattr(doc, 'deleted', False)}")
+            logger.info(f"[API] Document {idx}: id={doc.metadata.document_id}, name={doc.metadata.name}, type={doc.metadata.document_type}, deleted={getattr(doc.metadata, 'deleted', False)}")
 
         # Filter by type if specified
         if document_type:
             documents = [
                 doc for doc in documents
-                if doc.document_type == document_type
+                if doc.metadata.document_type == document_type
             ]
 
         # Convert to response format that matches frontend expectations
@@ -438,24 +438,24 @@ async def list_documents(
             # Build the response in the format frontend expects
             doc_response = {
                 "metadata": {
-                    "document_id": doc.document_id,
-                    "name": doc.name,
-                    "document_type": doc.document_type,
-                    "version": doc.version,
-                    "size": doc.file_size if hasattr(doc, 'file_size') and doc.file_size else 0,  # Use actual file size from metadata
-                    "created_at": doc.created_at.isoformat() if hasattr(doc.created_at, 'isoformat') else str(doc.created_at),
-                    "updated_at": doc.updated_at.isoformat() if hasattr(doc.updated_at, 'isoformat') else str(doc.updated_at),
-                    "deleted": getattr(doc, "deleted", False),
-                    "deleted_at": doc.deleted_at.isoformat() if hasattr(doc, 'deleted_at') and doc.deleted_at and hasattr(doc.deleted_at, 'isoformat') else str(doc.deleted_at) if hasattr(doc, 'deleted_at') and doc.deleted_at else None,
-                    "deleted_by": doc.deleted_by if hasattr(doc, 'deleted_by') else None,
-                    "user_id": doc.created_user,
-                    "tags": [],
-                    "processing_status": doc.processing_status,  # Use the @property from metadata
-                    "summary": doc.summary,
-                    "language": getattr(doc, "language", "en")
+                    "document_id": doc.metadata.document_id,
+                    "name": doc.metadata.name,
+                    "document_type": doc.metadata.document_type,
+                    "version": doc.metadata.version,
+                    "size": doc.metadata.file_size if hasattr(doc.metadata, 'file_size') and doc.metadata.file_size else 0,  # Use actual file size from metadata
+                    "created_at": doc.metadata.created_at.isoformat() if hasattr(doc.metadata.created_at, 'isoformat') else str(doc.metadata.created_at),
+                    "updated_at": doc.metadata.updated_at.isoformat() if hasattr(doc.metadata.updated_at, 'isoformat') else str(doc.metadata.updated_at),
+                    "deleted": getattr(doc.metadata, "deleted", False),
+                    "deleted_at": doc.metadata.deleted_at.isoformat() if hasattr(doc.metadata, 'deleted_at') and doc.metadata.deleted_at and hasattr(doc.metadata.deleted_at, 'isoformat') else str(doc.metadata.deleted_at) if hasattr(doc.metadata, 'deleted_at') and doc.metadata.deleted_at else None,
+                    "deleted_by": doc.metadata.deleted_by if hasattr(doc.metadata, 'deleted_by') else None,
+                    "user_id": doc.metadata.created_user,
+                    "tags": doc.metadata.tags if doc.metadata.tags else [],
+                    "processing_status": doc.metadata.processing_status,  # Use the @property from metadata
+                    "summary": doc.metadata.summary,
+                    "language": getattr(doc.metadata, "language", "en")
                 },
                 "content": {
-                    "summary": doc.summary
+                    "summary": doc.metadata.summary
                 }
             }
             doc_responses.append(doc_response)
@@ -686,7 +686,7 @@ async def upload_document(
                             "created_at": created.metadata.created_at.isoformat(),
                             "updated_at": created.metadata.updated_at.isoformat(),
                             "user_id": user["user_id"],
-                            "tags": [],
+                            "tags": created.metadata.tags if created.metadata.tags else [],
                             "processing_status": created.metadata.processing_status,  # Use the @property
                             "language": language
                         },
@@ -739,7 +739,7 @@ async def upload_document(
                     "document_type": created.metadata.document_type.value,
                     "user_id": user["user_id"],
                     "metadata": {
-                        "id": created.metadata.id,
+                        "document_id": created.metadata.document_id,
                         "name": created.metadata.name,
                         "document_type": created.metadata.document_type.value,
                         "created_at": created.metadata.created_at.isoformat() if hasattr(created.metadata.created_at, 'isoformat') else str(created.metadata.created_at),
@@ -797,7 +797,7 @@ async def upload_document(
                         "created_at": created.metadata.created_at.isoformat(),
                         "updated_at": created.metadata.updated_at.isoformat(),
                         "user_id": user["user_id"],
-                        "tags": [],
+                        "tags": created.metadata.tags if created.metadata.tags else [],
                         "processing_status": created.metadata.processing_status  # Use the @property
                     },
                     "content": {

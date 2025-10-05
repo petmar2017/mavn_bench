@@ -108,6 +108,10 @@ class DocumentMetadata(BaseModel):
     deleted_at: Optional[datetime] = Field(default=None, description="When the document was deleted")
     deleted_by: Optional[str] = Field(default=None, description="User who deleted the document")
 
+    # Queue processing fields
+    retry_count: int = Field(default=0, description="Number of processing retry attempts")
+    last_error: Optional[str] = Field(default=None, description="Last error message from processing")
+
     def model_post_init(self, __context):
         """Handle field aliases after initialization"""
         # Sync id with document_id

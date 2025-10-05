@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Search, FileText, HardDrive, X, Trash2 } from 'lucide-react';
 import classNames from 'classnames';
 import { searchApi, documentApi } from '../services/api';
-import type { SearchResult } from '../services/api';
+import type { SearchResult, DocumentMetadata } from '../types/document';
 import { formatFileSize, formatLocalDateTime } from '../utils/format';
 import styles from './SearchInterface.module.css';
 
@@ -17,7 +17,7 @@ interface SearchState {
 }
 
 interface SearchInterfaceProps {
-  onResultSelect?: (result: SearchResult) => void;
+  onResultSelect?: (metadata: DocumentMetadata) => void;
   onResultDelete?: (documentId: string) => void;
   searchState?: SearchState;
   onSearchStateChange?: (state: SearchState) => void;
@@ -255,7 +255,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({ onResultSelect
             <div
               key={result.document_id || index}
               className={styles.resultCard}
-              onClick={() => onResultSelect?.(result)}
+              onClick={() => onResultSelect?.(result.metadata)}
             >
               <div className={styles.resultHeader}>
                 <FileText size={20} className={styles.resultIcon} />

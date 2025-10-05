@@ -3,13 +3,13 @@ import { FileText, AlertCircle, Trash2, Code, Table, FileJson } from 'lucide-rea
 import classNames from 'classnames';
 import { formatFileSize, formatLocalDateTime } from '../utils/format';
 import { documentApi } from '../services/api';
-import type { DocumentMessage } from '../services/api';
+import type { DocumentMessage, DocumentMetadata } from '../types/document';
 import { wsService } from '../services/websocket';
 import { logger } from '../services/logging';
 import styles from './DocumentList.module.css';
 
 interface DocumentListProps {
-  onDocumentSelect?: (document: DocumentMessage) => void;
+  onDocumentSelect?: (metadata: DocumentMetadata) => void;
   onDocumentDeleted?: (documentId: string) => void;
   refresh?: number;
 }
@@ -84,7 +84,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, on
 
       logger.debug(`[DOCLIST ${fetchTimestamp}] Processed as array`, {
         arrayLength: documentsArray.length,
-        documentIds: documentsArray.map(doc => doc.metadata?.id || doc.metadata?.document_id)
+        documentIds: documentsArray.map(doc => doc.metadata?.document_id)
       });
 
       // Filter out deleted documents (soft delete)
@@ -108,7 +108,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, on
         activeCount: activeDocuments.length,
         deletedCount: documentsArray.length - activeDocuments.length,
         activeDocuments: activeDocuments.map(doc => ({
-          id: doc.metadata?.id || doc.metadata?.document_id,
+          id: doc.metadata?.document_id,
           name: doc.metadata?.name,
           type: doc.metadata?.document_type,
           deleted: doc.metadata?.deleted
@@ -136,7 +136,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, on
       logger.info(`[DOCLIST ${fetchTimestamp}] Documents processed and sorted`, {
         finalCount: sortedDocs.length,
         sortedDocuments: sortedDocs.map(doc => ({
-          id: doc.metadata?.id,
+          id: doc.metadata?.document_id,
           name: doc.metadata?.name,
           type: doc.metadata?.type,
           created_at: doc.metadata?.created_at,
@@ -294,7 +294,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, on
       const eventTimestamp = new Date().toISOString();
       logger.info(`[DOCLIST-WS ${eventTimestamp}] Document created event received`, {
         data,
-        documentId: data?.id,
+        documentId: data?.document_id,
         wsConnected: wsService.isConnected()
       });
       fetchDocuments(false);
@@ -304,7 +304,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, on
       const eventTimestamp = new Date().toISOString();
       logger.info(`[DOCLIST-WS ${eventTimestamp}] Document updated event received`, {
         data,
-        documentId: data?.id,
+        documentId: data?.document_id,
         wsConnected: wsService.isConnected()
       });
       fetchDocuments(false);
@@ -415,7 +415,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ onDocumentSelect, on
               <div
                 key={doc.metadata.document_id}
                 className={styles.tile}
-                onClick={() => onDocumentSelect?.(doc)}
+                onClick={() => onDocumentSelect?.(doc.metadata)}
                 title={doc.metadata.name || 'Untitled Document'}
               >
                 <div className={styles.tileContent}>

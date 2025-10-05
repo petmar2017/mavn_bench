@@ -613,15 +613,24 @@ class QueueService(BaseService):
             # Define progress callback for WebSocket updates
             async def progress_callback(progress: int, message: str):
                 logger.info(f"Document {document_id}: {progress}% - {message}")
-                if self._websocket_service:
-                    await self._websocket_service.broadcast({
-                        "type": "document:processing_progress",
-                        "data": {
-                            "document_id": document_id,
-                            "progress": progress,
-                            "message": message
+                try:
+                    from src.api.socketio_app import emit_document_updated
+
+                    # Emit progress update
+                    progress_payload = {
+                        "document_id": document_id,
+                        "status": "processing",
+                        "processing_status": "processing",
+                        "progress": progress,
+                        "message": message,
+                        "metadata": {
+                            "processing_stage": ProcessingStage.PROCESSING.value
                         }
-                    })
+                    }
+
+                    await emit_document_updated(progress_payload)
+                except Exception as ws_error:
+                    logger.debug(f"Failed to emit progress update: {ws_error}")
 
             # Process the document using the centralized processor
             processed_document = await processor.process_document(
@@ -636,15 +645,26 @@ class QueueService(BaseService):
             # Mark as completed in Redis queue
             await self.redis_queue.mark_completed(document_id)
 
-            # Send WebSocket notification
-            if self._websocket_service:
-                await self._websocket_service.broadcast({
-                    "type": "document:processing_complete",
-                    "data": {
-                        "document_id": document_id,
-                        "status": "completed"
+            # Send WebSocket notification for document update
+            # Import here to avoid circular dependency
+            try:
+                from src.api.socketio_app import emit_document_updated
+
+                # Prepare document data for WebSocket
+                websocket_payload = {
+                    "document_id": document_id,
+                    "status": "completed",
+                    "processing_status": "completed",
+                    "metadata": {
+                        "processing_stage": ProcessingStage.COMPLETED.value,
+                        "summary": processed_document.metadata.summary if processed_document.metadata.summary else None
                     }
-                })
+                }
+
+                await emit_document_updated(websocket_payload)
+                logger.info(f"Emitted document:updated event for completed document {document_id}")
+            except Exception as ws_error:
+                logger.warning(f"Failed to emit WebSocket update for document {document_id}: {ws_error}")
 
             # Clean up temp file if it exists
             import os
@@ -668,16 +688,24 @@ class QueueService(BaseService):
                 logger.error(f"Failed to mark document as failed: {str(mark_error)}")
 
             # Send detailed failure notification for better UI feedback
-            if self._websocket_service:
-                await self._websocket_service.broadcast({
-                    "type": "document:processing_failed",
-                    "data": {
-                        "document_id": document_id,
-                        "error": str(e),
-                        "stage": "processing",
-                        "timestamp": datetime.utcnow().isoformat()
+            try:
+                from src.api.socketio_app import emit_document_updated
+
+                # Prepare error document data for WebSocket
+                error_payload = {
+                    "document_id": document_id,
+                    "status": "failed",
+                    "processing_status": "failed",
+                    "error": str(e),
+                    "metadata": {
+                        "processing_stage": ProcessingStage.FAILED.value
                     }
-                })
+                }
+
+                await emit_document_updated(error_payload)
+                logger.info(f"Emitted document:updated event for failed document {document_id}")
+            except Exception as ws_error:
+                logger.warning(f"Failed to emit WebSocket error update for document {document_id}: {ws_error}")
 
             # Update document status to failed for immediate UI feedback
             try:

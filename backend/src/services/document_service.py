@@ -289,7 +289,7 @@ class DocumentService(BaseService):
         limit: int = 100,
         offset: int = 0,
         include_deleted: bool = False
-    ) -> List[DocumentMetadata]:
+    ) -> List[DocumentMessage]:
         """List documents with optional filtering
 
         Args:
@@ -300,7 +300,7 @@ class DocumentService(BaseService):
             include_deleted: Whether to include soft-deleted documents
 
         Returns:
-            List of document metadata
+            List of document messages
         """
         with self.traced_operation(
             "list_documents",
@@ -327,7 +327,7 @@ class DocumentService(BaseService):
                     original_count = len(documents)
                     documents = [
                         doc for doc in documents
-                        if not getattr(doc, "deleted", False)
+                        if not getattr(doc.metadata, "deleted", False)
                     ]
                     self.logger.info(f"[DocumentService] After filtering deleted: {original_count} -> {len(documents)} documents")
 
@@ -426,7 +426,7 @@ class DocumentService(BaseService):
         query: str,
         user_id: Optional[str] = None,
         limit: int = 10
-    ) -> List[DocumentMetadata]:
+    ) -> List[DocumentMessage]:
         """Search for documents (basic implementation, will be enhanced with search services)
 
         Args:
@@ -435,7 +435,7 @@ class DocumentService(BaseService):
             limit: Maximum number of results
 
         Returns:
-            List of matching document metadata
+            List of matching document messages
         """
         with self.traced_operation(
             "search_documents",
@@ -450,8 +450,8 @@ class DocumentService(BaseService):
 
                 matching = [
                     doc for doc in all_docs
-                    if query.lower() in doc.name.lower() or
-                    (doc.summary and query.lower() in doc.summary.lower())
+                    if query.lower() in doc.metadata.name.lower() or
+                    (doc.metadata.summary and query.lower() in doc.metadata.summary.lower())
                 ]
 
                 # Limit results

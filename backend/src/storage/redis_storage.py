@@ -230,7 +230,7 @@ class RedisStorage(StorageAdapter):
         document_type: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
-    ) -> List[DocumentMetadata]:
+    ) -> List[DocumentMessage]:
         """List documents with optional filtering"""
         with self.traced_operation(
             "list_documents",
@@ -249,7 +249,7 @@ class RedisStorage(StorageAdapter):
                     list_key, 0, -1
                 )
 
-                metadata_list = []
+                document_list = []
 
                 for doc_id in document_ids:
                     metadata_key = self._get_metadata_key(doc_id)
@@ -267,16 +267,19 @@ class RedisStorage(StorageAdapter):
                     if document_type and metadata.document_type != document_type:
                         continue
 
-                    metadata_list.append(metadata)
+                    # Load the full document
+                    document = await self.load(doc_id)
+                    if document:
+                        document_list.append(document)
 
                 # Apply pagination
                 start = offset
                 end = offset + limit
-                paginated_list = metadata_list[start:end]
+                paginated_list = document_list[start:end]
 
                 self.logger.info(
                     f"Listed {len(paginated_list)} documents from Redis "
-                    f"(total: {len(metadata_list)}, offset: {offset}, limit: {limit})"
+                    f"(total: {len(document_list)}, offset: {offset}, limit: {limit})"
                 )
                 return paginated_list
 

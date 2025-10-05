@@ -189,7 +189,7 @@ class TestDocumentService:
         # List by user
         user_docs = await service.list_documents(user_id="test_user")
         assert len(user_docs) == 1
-        assert user_docs[0].document_id == test_document.metadata.document_id
+        assert user_docs[0].metadata.document_id == test_document.metadata.document_id
 
         # List with pagination
         paginated = await service.list_documents(limit=1, offset=0)
@@ -254,7 +254,7 @@ class TestDocumentService:
         # Search by name
         results = await service.search_documents("Research", "test_user")
         assert len(results) == 1
-        assert results[0].document_id == test_document.metadata.document_id
+        assert results[0].metadata.document_id == test_document.metadata.document_id
 
         # Search by summary
         results = await service.search_documents("machine learning", "test_user")

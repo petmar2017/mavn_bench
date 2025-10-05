@@ -261,23 +261,29 @@ class TestTranscriptionService:
     @pytest.mark.asyncio
     async def test_storage_integration(self, transcription_service):
         """Test storage integration"""
-        # Create a test document
-        test_doc = {
-            "metadata": {
-                "document_id": "test_trans_123",
-                "document_type": "youtube",
-                "name": "Test Video",
-                "created_user": "test",
-                "updated_user": "test"
-            },
-            "content": {
-                "raw_text": "test content",
-                "formatted_content": "# Test\n\ntest content"
-            }
-        }
+        from src.models.document import DocumentMessage, DocumentMetadata, DocumentContent, DocumentType
 
-        # Store document
-        await transcription_service.storage.store("test_trans_123", test_doc)
+        # Create a test document using proper DocumentMessage
+        metadata = DocumentMetadata(
+            document_id="test_trans_123",
+            document_type=DocumentType.YOUTUBE,
+            name="Test Video",
+            created_user="test",
+            updated_user="test"
+        )
+
+        content = DocumentContent(
+            raw_text="test content",
+            formatted_content="# Test\n\ntest content"
+        )
+
+        test_doc = DocumentMessage(
+            metadata=metadata,
+            content=content
+        )
+
+        # Store document - storage.save expects DocumentMessage
+        await transcription_service.storage.save(test_doc)
 
         # Retrieve and verify - storage returns DocumentMessage object
         retrieved = await transcription_service.storage.load("test_trans_123")

@@ -191,7 +191,7 @@ class FilesystemStorage(StorageAdapter):
         document_type: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
-    ) -> List[DocumentMetadata]:
+    ) -> List[DocumentMessage]:
         """List documents with optional filtering"""
         with self.traced_operation(
             "list_documents",
@@ -201,7 +201,7 @@ class FilesystemStorage(StorageAdapter):
             offset=offset
         ):
             try:
-                metadata_list = []
+                document_list = []
 
                 # List all metadata files
                 metadata_files = sorted(
@@ -230,22 +230,25 @@ class FilesystemStorage(StorageAdapter):
                     if document_type and str(metadata.document_type) != document_type:
                         continue
 
-                    metadata_list.append(metadata)
+                    # Load the full document
+                    document = await self.load(metadata.document_id)
+                    if document:
+                        document_list.append(document)
 
                 # Sort by updated_at descending (most recent first)
-                metadata_list.sort(
-                    key=lambda x: x.updated_at or x.created_at or datetime.min.isoformat(),
+                document_list.sort(
+                    key=lambda x: x.metadata.updated_at or x.metadata.created_at or datetime.min.isoformat(),
                     reverse=True
                 )
 
                 # Apply pagination
                 start = offset
                 end = offset + limit
-                paginated_list = metadata_list[start:end]
+                paginated_list = document_list[start:end]
 
                 self.logger.info(
                     f"Listed {len(paginated_list)} documents "
-                    f"(total: {len(metadata_list)}, offset: {offset}, limit: {limit})"
+                    f"(total: {len(document_list)}, offset: {offset}, limit: {limit})"
                 )
                 return paginated_list
 

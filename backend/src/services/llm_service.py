@@ -115,23 +115,25 @@ class LLMService(BaseService):
 
         # Use provider from argument or default from config
         if provider is None:
-            provider = LLMProvider.ANTHROPIC if settings.llm.default_provider == "anthropic" else LLMProvider.OPENAI
+            # Map new provider config to legacy enum
+            default_provider_name = settings.llm.default_provider
+            if "anthropic" in default_provider_name or "claude" in default_provider_name:
+                provider = LLMProvider.ANTHROPIC
+            else:
+                provider = LLMProvider.OPENAI
 
         self.provider = provider
 
-        # Set provider-specific settings
+        # Get provider config from the new structure
+        # For now, use sensible defaults based on provider
         if provider == LLMProvider.ANTHROPIC:
-            max_tokens = settings.llm.claude_max_tokens
-            temperature = settings.llm.claude_temperature
-            model = settings.llm.claude_model
-        elif provider == LLMProvider.OPENAI:
-            max_tokens = settings.llm.openai_max_tokens
-            temperature = settings.llm.openai_temperature
-            model = settings.llm.openai_model
-        else:
-            max_tokens = settings.llm.max_tokens
-            temperature = settings.llm.temperature
-            model = settings.llm.default_model
+            max_tokens = 4000
+            temperature = 0.3
+            model = "claude-3-5-sonnet-20241022"
+        else:  # OPENAI
+            max_tokens = 2000
+            temperature = 0.3
+            model = "gpt-4o"
 
         # Initialize API clients
         openai_client = None
@@ -289,18 +291,24 @@ class LLMService(BaseService):
             LLMToolType.ENTITY_EXTRACTION,
             {
                 "text": text,
-                "entity_types": entity_types
+                "entity_types": entity_types or []
             }
         )
 
         # Convert to old Entity format for compatibility
         entities = result.get("entities", [])
 
-        # Create Entity-like dictionaries
+        # Create Entity-like dictionaries with expected field names
         entity_objects = []
         for entity_dict in entities:
-            # The tool already returns dictionaries with the right format
-            entity_objects.append(entity_dict)
+            # Map 'type' back to 'entity_type' for backward compatibility
+            entity_obj = {
+                "text": entity_dict.get("text", ""),
+                "entity_type": entity_dict.get("type", "UNKNOWN"),
+                "confidence": entity_dict.get("confidence", 1.0),
+                "metadata": entity_dict.get("metadata", {})
+            }
+            entity_objects.append(entity_obj)
 
         return entity_objects
 
@@ -322,7 +330,7 @@ class LLMService(BaseService):
             LLMToolType.CLASSIFICATION,
             {
                 "text": text,
-                "categories": categories
+                "categories": categories or []
             }
         )
         return (
@@ -470,6 +478,39 @@ class LLMService(BaseService):
             Dictionary with tool information
         """
         return ToolRegistry.get_tool_info()
+
+    async def text_to_markdown(self, text: str) -> str:
+        """Convert plain text to markdown format
+
+        Args:
+            text: Plain text to convert
+
+        Returns:
+            Markdown formatted text
+        """
+        with self.traced_operation("text_to_markdown", text_length=len(text)):
+            try:
+                # For now, just wrap in markdown code block or return as-is
+                # In the future, this could use LLM to improve formatting
+                lines = text.split('\n')
+
+                # Basic markdown formatting
+                markdown_lines = []
+                for line in lines:
+                    # Convert headers (lines that look like titles)
+                    if line and len(line) < 50 and line[0].isupper():
+                        markdown_lines.append(f"## {line}")
+                    else:
+                        markdown_lines.append(line)
+
+                result = '\n'.join(markdown_lines)
+                self.logger.info(f"Converted {len(text)} chars to markdown")
+                return result
+
+            except Exception as e:
+                self.logger.error(f"Failed to convert text to markdown: {str(e)}")
+                # Return original text as fallback
+                return text
 
     async def health_check(self) -> Dict[str, Any]:
         """Check service health with dynamic capability detection

@@ -25,7 +25,7 @@ except ImportError:
 
 from .base_service import BaseService
 from .llm_service import LLMService
-from ..models.document import DocumentMessage, DocumentMetadata
+from ..models.document import DocumentMessage, DocumentMetadata, DocumentContent
 from ..core.config import get_settings
 from ..core.logger import CentralizedLogger
 
@@ -45,6 +45,9 @@ class VectorSearchService(BaseService):
         # Qdrant configuration
         self.collection_name = "documents"
         self.vector_size = 384  # Using smaller size for demo, normally 1536 for ada-002
+
+        # Mock storage for when Qdrant is not available
+        self.mock_storage = {}  # document_id -> (document, embeddings)
 
         # Initialize Qdrant client if available
         if QDRANT_AVAILABLE:
@@ -141,7 +144,8 @@ class VectorSearchService(BaseService):
                         points=[point]
                     )
                 else:
-                    # Mock storage
+                    # Mock storage - store in memory
+                    self.mock_storage[doc_id] = (document, embeddings)
                     self.logger.info(f"Mock: Indexed document {doc_id}")
 
                 self.logger.info(f"Successfully indexed document {doc_id}")
@@ -157,7 +161,7 @@ class VectorSearchService(BaseService):
         limit: int = 10,
         filters: Optional[Dict[str, Any]] = None,
         threshold: float = 0.7
-    ) -> List[Tuple[DocumentMetadata, float]]:
+    ) -> List[Tuple[DocumentMessage, float]]:
         """Search for similar documents
 
         Args:
@@ -167,7 +171,7 @@ class VectorSearchService(BaseService):
             threshold: Similarity threshold (0-1)
 
         Returns:
-            List of (metadata, score) tuples
+            List of (DocumentMessage, score) tuples
         """
         # Validate query
         if not query or not query.strip():
@@ -208,7 +212,7 @@ class VectorSearchService(BaseService):
                         score_threshold=threshold
                     )
 
-                    # Convert results
+                    # Convert results to DocumentMessage
                     documents = []
                     for result in results:
                         metadata = DocumentMetadata(
@@ -218,7 +222,12 @@ class VectorSearchService(BaseService):
                             created_user=result.payload["created_user"],
                             updated_user=result.payload["created_user"]
                         )
-                        documents.append((metadata, result.score))
+                        # Create DocumentMessage with empty content for search results
+                        doc_message = DocumentMessage(
+                            metadata=metadata,
+                            content=DocumentContent()  # Empty content for search results
+                        )
+                        documents.append((doc_message, result.score))
 
                     self.logger.info(f"Found {len(documents)} similar documents")
                     return documents
@@ -226,6 +235,8 @@ class VectorSearchService(BaseService):
                 else:
                     # Mock search results
                     self.logger.info("Mock: Returning sample search results")
+                    if limit == 0:
+                        return []
                     mock_metadata = DocumentMetadata(
                         document_id="mock_doc_1",
                         document_type="pdf",
@@ -233,7 +244,11 @@ class VectorSearchService(BaseService):
                         created_user="system",
                         updated_user="system"
                     )
-                    return [(mock_metadata, 0.85)]
+                    mock_doc = DocumentMessage(
+                        metadata=mock_metadata,
+                        content=DocumentContent()
+                    )
+                    return [(mock_doc, 0.85)]
 
             except Exception as e:
                 self.logger.error(f"Search failed: {str(e)}")
@@ -244,7 +259,7 @@ class VectorSearchService(BaseService):
         document_id: str,
         limit: int = 5,
         threshold: float = 0.7
-    ) -> List[Tuple[DocumentMetadata, float]]:
+    ) -> List[Tuple[DocumentMessage, float]]:
         """Find documents similar to a given document
 
         Args:
@@ -253,7 +268,7 @@ class VectorSearchService(BaseService):
             threshold: Similarity threshold
 
         Returns:
-            List of similar documents
+            List of similar DocumentMessage objects with scores
         """
         with self.traced_operation(
             "find_similar",
@@ -344,8 +359,12 @@ class VectorSearchService(BaseService):
                     self.logger.info(f"Deleted document {document_id} from index")
                     return True
                 else:
-                    self.logger.info(f"Mock: Deleted document {document_id}")
-                    return True
+                    # Mock deletion
+                    if document_id in self.mock_storage:
+                        del self.mock_storage[document_id]
+                        self.logger.info(f"Mock: Deleted document {document_id}")
+                        return True
+                    return False
 
             except Exception as e:
                 self.logger.error(f"Failed to delete document: {str(e)}")
@@ -380,7 +399,10 @@ class VectorSearchService(BaseService):
                     self.logger.debug(f"Document {document_id} exists: {exists}")
                     return exists
                 else:
-                    return False
+                    # Check mock storage
+                    exists = document_id in self.mock_storage
+                    self.logger.debug(f"Mock: Document {document_id} exists: {exists}")
+                    return exists
 
             except Exception as e:
                 self.logger.error(f"Failed to check document existence: {str(e)}")

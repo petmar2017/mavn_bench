@@ -538,7 +538,9 @@ class RedisQueueService(BaseService):
                         # Reset retry count and status
                         document.metadata.retry_count = 0
                         document.metadata.processing_stage = ProcessingStage.PENDING
-                        document.metadata.last_error = None
+                        # Note: last_error field doesn't exist in DocumentMetadata
+                        # Clear any error stored in Redis
+                        await self.redis_client.delete(f"last_error:{document_id}")
                         await self.storage.save(document)
 
                         # Add to pending queue

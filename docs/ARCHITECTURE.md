@@ -311,6 +311,71 @@ class SummarizationTool(BaseLLMTool):
 - **Type Safety**: Decorators enforce proper type usage
 - **Dynamic Configuration**: Capabilities generated from registered tools
 
+#### Multi-Model Provider Architecture
+
+The LLM service now supports multiple model providers through a comprehensive provider system:
+
+**Provider Components:**
+- **BaseModelProvider**: Abstract base class defining provider interface
+- **ModelProviderRegistry**: Central registry for provider discovery
+- **ModelSelector**: Intelligent model selection with strategies
+- **Provider Implementations**: 8+ providers (Claude, GPT, Gemini families)
+
+**Model Selection Strategies:**
+```python
+class SelectionStrategy(Enum):
+    COST = "cost"          # Minimize cost
+    QUALITY = "quality"    # Maximize quality
+    LATENCY = "latency"    # Minimize latency
+    BALANCED = "balanced"  # Balance all factors
+    MANUAL = "manual"      # Use explicit overrides
+
+# Intelligent selection based on requirements
+selector = ModelSelector()
+model = selector.select_model(
+    task_type=LLMToolType.SUMMARIZATION,
+    requirements=TaskRequirements(
+        max_latency_ms=1000,
+        max_cost_tier=CostTier.STANDARD,
+        min_quality_score=0.8
+    )
+)
+```
+
+**Configuration-Driven Providers:**
+All provider settings are centralized in config:
+```python
+providers: {
+    "anthropic-claude-3.5-sonnet": {
+        "name": "Claude 3.5 Sonnet",
+        "cost_per_1k_input": 0.003,
+        "cost_per_1k_output": 0.015,
+        "cost_tier": "premium",
+        "avg_latency_ms": 2000,
+        "max_context": 200000,
+        "quality_score": 0.95,
+        "capabilities": "text_generation,long_context,json_mode",
+        "preferred_for": "complex_reasoning,detailed_analysis"
+    },
+    # ... more providers
+}
+```
+
+**Provider Registration:**
+```python
+@register_provider("anthropic-claude-3.5-sonnet")
+class ClaudeSonnetProvider(BaseModelProvider):
+    # Provider implementation
+    pass
+```
+
+**Benefits:**
+- **Multi-Model Support**: Easy integration of new models (Gemini, Grok, Llama, etc.)
+- **Cost Optimization**: Automatic selection based on cost/performance requirements
+- **High Availability**: Fallback chains ensure service continuity
+- **Config-Driven**: All settings in central configuration
+- **Future-Proof**: Ready for new models without code changes
+
 ### 3. Storage Layer
 
 #### Storage Adapter Pattern

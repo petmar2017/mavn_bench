@@ -391,23 +391,29 @@ Final text.
     @pytest.mark.asyncio
     async def test_storage_integration(self, web_scraping_service):
         """Test storage integration"""
-        # Create a test document
-        test_doc = {
-            "metadata": {
-                "document_id": "web_test123",
-                "document_type": "webpage",
-                "name": "Web Test",
-                "created_user": "test",
-                "updated_user": "test"
-            },
-            "content": {
-                "raw_text": "web content",
-                "formatted_content": "# Web Test\n\nweb content"
-            }
-        }
+        from src.models.document import DocumentMessage, DocumentMetadata, DocumentContent, DocumentType
 
-        # Store document
-        await web_scraping_service.storage.store("web_test123", test_doc)
+        # Create a test document using proper DocumentMessage
+        metadata = DocumentMetadata(
+            document_id="web_test123",
+            document_type=DocumentType.WEBPAGE,
+            name="Web Test",
+            created_user="test",
+            updated_user="test"
+        )
+
+        content = DocumentContent(
+            raw_text="web content",
+            formatted_content="# Web Test\n\nweb content"
+        )
+
+        test_doc = DocumentMessage(
+            metadata=metadata,
+            content=content
+        )
+
+        # Store document - storage.save expects DocumentMessage
+        await web_scraping_service.storage.save(test_doc)
 
         # Retrieve and verify - storage returns DocumentMessage object
         retrieved = await web_scraping_service.storage.load("web_test123")

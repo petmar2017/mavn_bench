@@ -77,7 +77,9 @@ async def vector_search(
 
             # Convert results to frontend format
             search_results = []
-            for metadata, score in results:
+            for doc_message, score in results:
+                # Extract metadata from DocumentMessage
+                metadata = doc_message.metadata
                 search_results.append({
                     "document_id": metadata.document_id,
                     "score": score,
@@ -113,22 +115,22 @@ async def vector_search(
             query_lower = request.query.lower()
 
             for doc in all_docs[:request.limit]:
-                if (query_lower in doc.name.lower() or
-                    (doc.summary and query_lower in doc.summary.lower())):
+                if (query_lower in doc.metadata.name.lower() or
+                    (doc.metadata.summary and query_lower in doc.metadata.summary.lower())):
                     matching_docs.append({
-                        "document_id": doc.document_id,
+                        "document_id": doc.metadata.document_id,
                         "score": 0.85,  # Mock score
                         "metadata": {
-                            "document_id": doc.document_id,
-                            "name": doc.name,
-                            "document_type": doc.document_type,
-                            "version": doc.version,
-                            "size": doc.file_size if doc.file_size else 0,
-                            "created_at": str(doc.created_at),
-                            "updated_at": str(doc.updated_at),
-                            "user_id": doc.created_user,
-                            "tags": doc.tags if doc.tags else [],
-                            "processing_status": doc.processing_status  # Use the @property
+                            "document_id": doc.metadata.document_id,
+                            "name": doc.metadata.name,
+                            "document_type": doc.metadata.document_type,
+                            "version": doc.metadata.version,
+                            "size": doc.metadata.file_size if doc.metadata.file_size else 0,
+                            "created_at": str(doc.metadata.created_at),
+                            "updated_at": str(doc.metadata.updated_at),
+                            "user_id": doc.metadata.created_user,
+                            "tags": doc.metadata.tags if doc.metadata.tags else [],
+                            "processing_status": doc.metadata.processing_status  # Use the @property
                         },
                         "highlights": [f"...{request.query}..."]
                     })
@@ -325,23 +327,23 @@ async def hybrid_search(
         query_lower = request.query.lower()
 
         for doc in all_docs[:request.limit]:
-            if (query_lower in doc.name.lower() or
-                (doc.summary and query_lower in doc.summary.lower())):
+            if (query_lower in doc.metadata.name.lower() or
+                (doc.metadata.summary and query_lower in doc.metadata.summary.lower())):
                 # Simulate different scores for different search types
                 matching_docs.append({
-                    "document_id": doc.document_id,
+                    "document_id": doc.metadata.document_id,
                     "score": 0.90,  # Higher score for hybrid search
                     "metadata": {
-                        "document_id": doc.document_id,
-                        "name": doc.name,
-                        "document_type": doc.document_type,
-                        "version": doc.version,
-                        "size": doc.file_size if doc.file_size else 0,
-                        "created_at": str(doc.created_at),
-                        "updated_at": str(doc.updated_at),
-                        "user_id": doc.created_user,
-                        "tags": doc.tags if doc.tags else [],
-                        "processing_status": doc.processing_status  # Use the @property
+                        "document_id": doc.metadata.document_id,
+                        "name": doc.metadata.name,
+                        "document_type": doc.metadata.document_type,
+                        "version": doc.metadata.version,
+                        "size": doc.metadata.file_size if doc.metadata.file_size else 0,
+                        "created_at": str(doc.metadata.created_at),
+                        "updated_at": str(doc.metadata.updated_at),
+                        "user_id": doc.metadata.created_user,
+                        "tags": doc.metadata.tags if doc.metadata.tags else [],
+                        "processing_status": doc.metadata.processing_status  # Use the @property
                     },
                     "highlights": [f"...{request.query}..."]
                 })

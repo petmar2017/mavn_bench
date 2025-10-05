@@ -126,8 +126,8 @@ class DocumentProcessor(BaseService):
                 if progress_callback:
                     await progress_callback(100, "Processing complete")
 
-                # Set completion time
-                document.metadata.processing_completed_at = datetime.utcnow()
+                # Set processing stage to completed
+                # Note: updated_timestamp is automatically updated when document is saved
                 document.metadata.processing_stage = ProcessingStage.COMPLETED
 
                 return document
@@ -135,7 +135,8 @@ class DocumentProcessor(BaseService):
             except Exception as e:
                 self.logger.error(f"Document processing failed: {e}", exc_info=True)
                 document.metadata.processing_stage = ProcessingStage.FAILED
-                document.metadata.last_error = str(e)
+                # Note: last_error field doesn't exist in DocumentMetadata
+                # The error is already logged above
                 raise
 
     async def _process_pdf(

@@ -12,7 +12,7 @@ import { UploadQueue, type UploadItem } from './components/UploadQueue';
 import { Bench } from './components/Bench';
 import { wsService } from './services/websocket';
 import { logger } from './services/logging';
-import type { DocumentMessage, SearchResult } from './services/api';
+import type { DocumentMessage, SearchResult, DocumentMetadata } from './types/document';
 import { documentApi } from './services/api';
 
 // Initialize logger
@@ -26,7 +26,7 @@ logger.debug('QueryClient created');
 
 function AppContent() {
   const [refreshDocuments, setRefreshDocuments] = useState(0);
-  const [selectedDocument, setSelectedDocument] = useState<DocumentMessage | null>(null);
+  const [selectedDocumentMetadata, setSelectedDocumentMetadata] = useState<DocumentMetadata | null>(null);
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('dark');
   const [activeTab, setActiveTab] = useState('documents');
   const [toasts, setToasts] = useState<Array<{ id: string; title: string; description: string; type: string }>>([]);
@@ -199,8 +199,8 @@ function AppContent() {
       setTimeout(() => {
         setRefreshDocuments(prev => prev + 1);
       }, 100);
-      // Auto-select the newly uploaded document
-      setSelectedDocument(document);
+      // Auto-select the newly uploaded document by metadata
+      setSelectedDocumentMetadata(document.metadata);
     } else {
       logger.error('Invalid document received on upload success', { document });
       showToast({
@@ -211,11 +211,11 @@ function AppContent() {
     }
   };
 
-  const handleDocumentSelect = (document: DocumentMessage) => {
-    setSelectedDocument(document);
+  const handleDocumentSelect = (metadata: DocumentMetadata) => {
+    setSelectedDocumentMetadata(metadata);
     logger.debug('Document selected', {
-      documentId: document.metadata.document_id,
-      documentName: document.metadata.name
+      documentId: metadata.document_id,
+      documentName: metadata.name
     });
   };
 
@@ -227,40 +227,16 @@ function AppContent() {
     logger.info('Document deleted and tab closed', { documentId });
   };
 
-  const handleSearchResultSelect = async (result: SearchResult) => {
-    // Load the full document from the search result
-    logger.debug('Search result selected', { result });
-    try {
-      const document = await documentApi.getDocument(result.document_id);
-      logger.debug('Document fetched', { document });
-
-      // Check if document has the expected structure
-      if (!document || !document.metadata) {
-        logger.error('Invalid document structure', { document });
-        showToast({
-          title: 'Error',
-          message: 'Invalid document format received',
-          type: 'error'
-        });
-        return;
-      }
-
-      setSelectedDocument(document);
-      logger.debug('Document set as selected', { documentId: document.metadata.document_id });
-    } catch (error) {
-      logger.error('Failed to load document from search result', { error });
-      showToast({
-        title: 'Error',
-        message: 'Failed to load document',
-        type: 'error'
-      });
-    }
+  const handleSearchResultSelect = (metadata: DocumentMetadata) => {
+    // Select document by metadata (Bench will fetch full document on demand)
+    logger.debug('Search result selected', { metadata });
+    setSelectedDocumentMetadata(metadata);
   };
 
   const handleSearchResultDelete = (documentId: string) => {
     // If the deleted document is currently selected in Bench, close it
-    if (selectedDocument?.metadata?.document_id === documentId) {
-      setSelectedDocument(null);
+    if (selectedDocumentMetadata?.document_id === documentId) {
+      setSelectedDocumentMetadata(null);
     }
     // Also close the tab in Bench if it's open
     if (benchRef.current) {
@@ -426,8 +402,8 @@ function AppContent() {
         <div className={styles.benchArea}>
           <Bench
             ref={benchRef}
-            selectedDocument={selectedDocument}
-            onClose={() => setSelectedDocument(null)}
+            selectedDocumentMetadata={selectedDocumentMetadata}
+            onClose={() => setSelectedDocumentMetadata(null)}
             onHistoryClick={(documentId) => {
               setVersionHistoryDocumentId(documentId);
               setActiveTab('history');
