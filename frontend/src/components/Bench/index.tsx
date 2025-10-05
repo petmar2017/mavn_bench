@@ -1,8 +1,9 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
-import { X, Save, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Save, Maximize2, Minimize2, ChevronRight, ChevronLeft } from 'lucide-react';
 import classNames from 'classnames';
 import { DocumentBench, type DocumentBenchRef } from './DocumentBench';
 import { DocumentTabs } from './DocumentTabs';
+import { ToolsMenu } from '../ToolsMenu/ToolsMenu';
 import { documentApi } from '../../services/api';
 import type { DocumentMessage } from '../../services/api';
 import { logger } from '../../services/logging';
@@ -24,6 +25,7 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
+  const [showToolsPanel, setShowToolsPanel] = useState(true);
   const documentBenchRef = useRef<DocumentBenchRef>(null);
 
   // Define handleCloseDocument before useImperativeHandle
@@ -120,6 +122,28 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
 
   const activeDocument = openDocuments.find(doc => doc.metadata.document_id === activeDocumentId);
 
+  const handleToolExecuted = async (toolId: string, result: any) => {
+    logger.info('Tool executed successfully', { toolId, documentId: activeDocumentId });
+
+    // Refresh the active document to get updated tools array
+    if (activeDocumentId) {
+      try {
+        const updatedDoc = await documentApi.getDocument(activeDocumentId);
+        setOpenDocuments(prev =>
+          prev.map(doc =>
+            doc.metadata.document_id === activeDocumentId ? updatedDoc : doc
+          )
+        );
+      } catch (error) {
+        logger.error('Failed to refresh document after tool execution', { error });
+      }
+    }
+  };
+
+  const handleToolError = (toolId: string, error: Error) => {
+    logger.error('Tool execution failed', { toolId, error: error.message });
+  };
+
   if (openDocuments.length === 0) {
     return (
       <div className={styles.emptyBench}>
@@ -156,6 +180,14 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
 
           <button
             className={styles.actionButton}
+            onClick={() => setShowToolsPanel(!showToolsPanel)}
+            title={showToolsPanel ? 'Hide tools panel' : 'Show tools panel'}
+          >
+            {showToolsPanel ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+
+          <button
+            className={styles.actionButton}
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
@@ -164,28 +196,40 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocument, onClo
         </div>
       </div>
 
-      <div className={styles.benchContent}>
-        {activeDocument && (
-          <DocumentBench
-            ref={documentBenchRef}
-            document={activeDocument}
-            onDocumentChange={() => handleDocumentChange(activeDocumentId!)}
-            onDelete={() => {
-              const isDeleted = activeDocument.metadata.deleted;
-              const isHardDelete = isDeleted;
-              if (isHardDelete && !confirm('Permanently delete this document? This cannot be undone.')) {
-                return;
-              }
-              handleDeleteDocument(activeDocumentId!, isHardDelete);
-            }}
-            onDownload={() => logger.info('Download clicked')}
-            onHistory={() => {
-              if (activeDocumentId && onHistoryClick) {
-                onHistoryClick(activeDocumentId);
-                logger.info('Version history clicked', { documentId: activeDocumentId });
-              }
-            }}
-          />
+      <div className={styles.benchLayout}>
+        <div className={styles.benchContent}>
+          {activeDocument && (
+            <DocumentBench
+              ref={documentBenchRef}
+              document={activeDocument}
+              onDocumentChange={() => handleDocumentChange(activeDocumentId!)}
+              onDelete={() => {
+                const isDeleted = activeDocument.metadata.deleted;
+                const isHardDelete = isDeleted;
+                if (isHardDelete && !confirm('Permanently delete this document? This cannot be undone.')) {
+                  return;
+                }
+                handleDeleteDocument(activeDocumentId!, isHardDelete);
+              }}
+              onDownload={() => logger.info('Download clicked')}
+              onHistory={() => {
+                if (activeDocumentId && onHistoryClick) {
+                  onHistoryClick(activeDocumentId);
+                  logger.info('Version history clicked', { documentId: activeDocumentId });
+                }
+              }}
+            />
+          )}
+        </div>
+
+        {showToolsPanel && activeDocument && (
+          <div className={styles.toolsPanel}>
+            <ToolsMenu
+              document={activeDocument}
+              onToolExecuted={handleToolExecuted}
+              onToolError={handleToolError}
+            />
+          </div>
         )}
       </div>
     </div>
