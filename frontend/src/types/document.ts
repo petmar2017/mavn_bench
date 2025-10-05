@@ -29,6 +29,18 @@ export interface DocumentMetadata {
   processing_status?: string;
   summary?: string;
   language?: string;
+  entities?: Entity[];
+}
+
+/**
+ * Extracted entity structure
+ * Represents a named entity extracted from document content
+ */
+export interface Entity {
+  text: string;
+  entity_type: string;
+  confidence: number;
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -39,7 +51,7 @@ export interface DocumentContent {
   raw_content?: string;
   formatted_content?: string;
   summary?: string;
-  entities?: Array<{ name: string; type: string; confidence: number }>;
+  entities?: Entity[];
   metadata?: Record<string, any>;
   embeddings?: number[];
   text?: string;

@@ -270,4 +270,64 @@ describe('ToolsMenu', () => {
       expect(slowAction).toHaveBeenCalledTimes(1);
     }, { timeout: 1000 });
   });
+
+  it('displays JSON-specific tools for JSON documents', () => {
+    const jsonDocument: DocumentMessage = {
+      ...mockDocument,
+      metadata: {
+        ...mockDocument.metadata,
+        document_type: 'json',
+      },
+    };
+
+    const jsonTools = [
+      {
+        id: 'validate_json',
+        label: 'Validate JSON',
+        icon: vi.fn(() => null) as any,
+        description: 'Validate JSON structure',
+        action: vi.fn().mockResolvedValue({ valid: true }),
+        documentTypes: ['json'],
+        requiresConfirmation: false,
+      },
+      {
+        id: 'format_json',
+        label: 'Format JSON',
+        icon: vi.fn(() => null) as any,
+        description: 'Format JSON',
+        action: vi.fn().mockResolvedValue({ formatted: true }),
+        documentTypes: ['json'],
+        requiresConfirmation: false,
+      },
+    ];
+
+    (toolsRegistry.getAvailableTools as any).mockReturnValue(jsonTools);
+
+    render(<ToolsMenu document={jsonDocument} />);
+
+    expect(screen.getByText('Validate JSON')).toBeInTheDocument();
+    expect(screen.getByText('Format JSON')).toBeInTheDocument();
+  });
+
+  it('shows default tools when no specific tools available', () => {
+    const unknownDocument: DocumentMessage = {
+      ...mockDocument,
+      metadata: {
+        ...mockDocument.metadata,
+        document_type: 'unknown',
+      },
+    };
+
+    const defaultTools = [
+      mockTools[0], // summarize
+      mockTools[1], // extract_entities
+    ];
+
+    (toolsRegistry.getAvailableTools as any).mockReturnValue(defaultTools);
+
+    render(<ToolsMenu document={unknownDocument} />);
+
+    expect(screen.getByText('Summarize')).toBeInTheDocument();
+    expect(screen.getByText('Extract Entities')).toBeInTheDocument();
+  });
 });

@@ -274,9 +274,17 @@ async def summarize_document(
                     detail=f"Document {request.document_id} not found"
                 )
 
+            # Extract text from document content
+            document_text = document.content.formatted_content or document.content.raw_text
+            if not document_text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Document {request.document_id} has no processable text content"
+                )
+
             # Generate summary
             summary = await llm_service.generate_summary(
-                document,
+                document_text,
                 max_length=request.max_length,
                 style=request.style
             )
@@ -356,11 +364,18 @@ async def extract_entities(
                     detail=f"Document {request.document_id} not found"
                 )
 
+            # Extract text from document content
+            document_text = document.content.formatted_content or document.content.raw_text
+            if not document_text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Document {request.document_id} has no processable text content"
+                )
+
             # Extract entities
             entities = await llm_service.extract_entities(
-                document,
-                entity_types=request.entity_types,
-                confidence_threshold=request.confidence_threshold
+                document_text,
+                entity_types=request.entity_types
             )
 
             # Store entities in document metadata

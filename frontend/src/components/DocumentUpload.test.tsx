@@ -88,7 +88,7 @@ describe('DocumentUpload', () => {
     });
 
     await waitFor(() => {
-      expect(mockOnUploadSuccess).toHaveBeenCalledWith(documentWithId);
+      expect(mockOnUploadSuccess).toHaveBeenCalledWith(documentWithId, undefined);
     });
   });
 
@@ -213,7 +213,7 @@ describe('DocumentUpload', () => {
     });
 
     await waitFor(() => {
-      expect(mockOnUploadSuccess).toHaveBeenCalled();
+      expect(mockOnUploadSuccess).toHaveBeenCalledWith(documentWithId, undefined);
     });
 
     // Error should be cleared
@@ -247,7 +247,7 @@ describe('DocumentUpload', () => {
     // The component doesn't show file preview in current implementation
     // It immediately uploads, so we just verify upload was called
     await waitFor(() => {
-      expect(mockOnUploadSuccess).toHaveBeenCalled();
+      expect(mockOnUploadSuccess).toHaveBeenCalledWith(documentWithId, undefined);
     });
   });
 

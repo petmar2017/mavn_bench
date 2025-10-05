@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Loader, FileBarChart, FileType } from 'lucide-react';
+import { Loader, FileBarChart, FileType, Network } from 'lucide-react';
 import type { DocumentMessage } from '../../services/api';
+import type { Entity } from '../../types/document';
 import { documentContentService } from '../../services/documentContent';
 import { ViewerTabBar } from './ViewerTabBar';
 import type { ViewerTab } from './ViewerTabBar';
 import { ViewerToolbar } from './ViewerToolbar';
 import { SimpleMarkdownEditor } from './SimpleMarkdownEditor';
+import { EntitiesViewer } from './EntitiesViewer';
 import styles from './MarkdownEditor.module.css';
 
 interface MarkdownEditorProps {
@@ -17,7 +19,7 @@ interface MarkdownEditorProps {
   onHistory?: () => void;
 }
 
-type TabMode = 'summary' | 'content';
+type TabMode = 'summary' | 'content' | 'entities';
 
 export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   document,
@@ -29,6 +31,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 }) => {
   const [content, setContent] = useState('');
   const [summary, setSummary] = useState('');
+  const [entities, setEntities] = useState<Entity[]>([]);
   const [tabMode, setTabMode] = useState<TabMode>('summary');
   const [isModified, setIsModified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,8 +48,10 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         const contentData = await documentContentService.getContent(documentId);
         const text = contentData.text || contentData.formatted_content || contentData.raw_text || '';
         const summaryText = contentData.summary || '';
+        const entitiesData = document.metadata.entities || [];
         setContent(text);
         setSummary(summaryText);
+        setEntities(entitiesData);
         setIsModified(false);
       } catch (err) {
         console.error('Failed to load document content:', err);
@@ -97,6 +102,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const tabs: ViewerTab[] = [
     { id: 'summary', label: 'Summary', icon: <FileBarChart size={16} /> },
     { id: 'content', label: 'Content', icon: <FileType size={16} /> },
+    { id: 'entities', label: 'Entities', icon: <Network size={16} /> },
   ];
 
   return (
@@ -125,7 +131,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             documentContentService.clearCache(document.metadata.document_id);
           }}
         />
-      ) : (
+      ) : tabMode === 'content' ? (
         <SimpleMarkdownEditor
           documentId={document.metadata.document_id}
           content={content}
@@ -133,8 +139,16 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           label="Document Content"
           onSave={(newContent) => {
             setContent(newContent);
-            setOriginalContent(newContent);
             setIsModified(false);
+            documentContentService.clearCache(document.metadata.document_id);
+          }}
+        />
+      ) : (
+        <EntitiesViewer
+          documentId={document.metadata.document_id}
+          entities={entities}
+          onEntitiesUpdate={(updatedEntities) => {
+            setEntities(updatedEntities);
             documentContentService.clearCache(document.metadata.document_id);
           }}
         />

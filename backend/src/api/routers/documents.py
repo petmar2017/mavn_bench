@@ -20,11 +20,13 @@ from ...models.document import (
 )
 from ...services.document_service import DocumentService
 from ...services.pdf_service import PDFService
+from ...services.llm_service import LLMService
 from ...core.logger import CentralizedLogger
 from ..dependencies import (
     get_current_user,
     get_document_service,
     get_pdf_service,
+    get_llm_service,
     get_pagination,
     PaginationParams,
     verify_trace_context
@@ -481,6 +483,7 @@ async def upload_document(
     user: Dict = Depends(get_current_user),
     service: DocumentService = Depends(get_document_service),
     pdf_service: PDFService = Depends(get_pdf_service),
+    llm_service: LLMService = Depends(get_llm_service),
     trace_context: Dict = Depends(verify_trace_context)
 ) -> Dict[str, Any]:
     """Upload a document file for async processing
@@ -491,6 +494,7 @@ async def upload_document(
         user: Current user
         service: Document service
         pdf_service: PDF service for PDF files
+        llm_service: LLM service for auto-processing
         trace_context: W3C trace context
 
     Returns:
@@ -635,6 +639,44 @@ async def upload_document(
                     created = await service.create_document(document, user["user_id"])
 
                     logger.info(f"Direct-content document created: {document_id} (type: {doc_type.value})")
+
+                    # Auto-generate summary and entities for new documents
+                    try:
+                        logger.info(f"Auto-processing document {document_id}: generating summary and entities")
+
+                        # Generate AI summary if text content exists
+                        if text_content and len(text_content) > 50:
+                            try:
+                                ai_summary = await llm_service.generate_summary(
+                                    text_content,
+                                    max_length=200,
+                                    style="concise"
+                                )
+                                # Update document with AI summary
+                                await service.update_document(
+                                    document_id,
+                                    {"metadata": {"summary": ai_summary}},
+                                    user["user_id"]
+                                )
+                                logger.info(f"AI summary generated for document {document_id}")
+                            except Exception as e:
+                                logger.warning(f"Failed to generate AI summary for {document_id}: {str(e)}")
+
+                        # Extract entities
+                        if text_content and len(text_content) > 50:
+                            try:
+                                entities = await llm_service.extract_entities(text_content)
+                                # Update document with entities
+                                await service.update_document(
+                                    document_id,
+                                    {"metadata": {"entities": entities}},
+                                    user["user_id"]
+                                )
+                                logger.info(f"Entities extracted for document {document_id}: {len(entities)} entities")
+                            except Exception as e:
+                                logger.warning(f"Failed to extract entities for {document_id}: {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Auto-processing failed for {document_id}: {str(e)}")
 
                     # Emit Socket.IO event to notify frontend
                     websocket_payload = {

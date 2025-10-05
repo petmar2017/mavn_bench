@@ -7,7 +7,7 @@
  * @module utils/toolsRegistry
  */
 
-import { FileText, Tag, MessageSquare, Languages, Search } from 'lucide-react';
+import { FileText, Tag, MessageSquare, Languages, Search, CheckCircle, Braces, FileJson } from 'lucide-react';
 import { processApi } from '../services/api';
 import type { ComponentType } from 'react';
 
@@ -97,7 +97,46 @@ export const AVAILABLE_TOOLS: Record<string, ToolDefinition> = {
     documentTypes: ['pdf', 'word', 'markdown', 'text', 'webpage', 'youtube', 'podcast'],
     requiresConfirmation: false,
   },
+  // JSON-specific tools
+  validate_json: {
+    id: 'validate_json',
+    label: 'Validate JSON',
+    icon: CheckCircle,
+    description: 'Validate JSON structure and report errors',
+    action: async (documentId: string) => {
+      return { message: 'JSON validation not yet implemented' };
+    },
+    documentTypes: ['json'],
+    requiresConfirmation: false,
+  },
+  format_json: {
+    id: 'format_json',
+    label: 'Format JSON',
+    icon: Braces,
+    description: 'Format and prettify JSON structure',
+    action: async (documentId: string) => {
+      return { message: 'JSON formatting not yet implemented' };
+    },
+    documentTypes: ['json'],
+    requiresConfirmation: false,
+  },
+  extract_schema: {
+    id: 'extract_schema',
+    label: 'Extract Schema',
+    icon: FileJson,
+    description: 'Extract JSON schema from the document',
+    action: async (documentId: string) => {
+      return { message: 'Schema extraction not yet implemented' };
+    },
+    documentTypes: ['json'],
+    requiresConfirmation: false,
+  },
 };
+
+/**
+ * Default tools to show when no specific recommendations exist
+ */
+export const DEFAULT_TOOLS = ['summarize', 'extract_entities'];
 
 /**
  * Get available tools for a specific document type
@@ -112,9 +151,17 @@ export function getAvailableTools(
 ): ToolDefinition[] {
   const normalizedType = documentType.toLowerCase();
 
-  return Object.values(AVAILABLE_TOOLS).filter((tool) =>
+  // Get tools specific to this document type
+  const specificTools = Object.values(AVAILABLE_TOOLS).filter((tool) =>
     tool.documentTypes.includes(normalizedType)
   );
+
+  // If no specific tools found, return default tools
+  if (specificTools.length === 0) {
+    return DEFAULT_TOOLS.map(toolId => AVAILABLE_TOOLS[toolId]).filter(Boolean);
+  }
+
+  return specificTools;
 }
 
 /**

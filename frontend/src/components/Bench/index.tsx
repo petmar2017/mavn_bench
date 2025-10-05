@@ -5,6 +5,7 @@ import { DocumentBench, type DocumentBenchRef } from './DocumentBench';
 import { DocumentTabs } from './DocumentTabs';
 import { ToolsMenu } from '../ToolsMenu/ToolsMenu';
 import { documentApi } from '../../services/api';
+import { documentContentService } from '../../services/documentContent';
 import type { DocumentMessage, DocumentMetadata } from '../../types/document';
 import { logger } from '../../services/logging';
 import styles from './Bench.module.css';
@@ -134,9 +135,13 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocumentMetadat
   const handleToolExecuted = async (toolId: string, result: any) => {
     logger.info('Tool executed successfully', { toolId, documentId: activeDocumentId });
 
-    // Refresh the active document to get updated tools array
+    // Refresh the active document to get updated tools array and content
     if (activeDocumentId) {
       try {
+        // Clear the content cache so fresh content is loaded
+        documentContentService.clearCache(activeDocumentId);
+
+        // Fetch updated document
         const updatedDoc = await documentApi.getDocument(activeDocumentId);
         setOpenDocuments(prev =>
           prev.map(doc =>

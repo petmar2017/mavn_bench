@@ -102,6 +102,7 @@ class DocumentMetadata(BaseModel):
     tags: List[str] = Field(default_factory=list)
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
+    entities: Optional[List[Dict[str, Any]]] = Field(default=None, description="Extracted entities from document")
 
     # Soft delete fields
     deleted: bool = Field(default=False, description="Whether the document is soft deleted")

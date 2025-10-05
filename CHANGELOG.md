@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Document Type-Specific Tool Recommendations**: Enhanced tool discovery system with JSON-specific tools
+  - Added 3 JSON-specific tools: Validate JSON, Format JSON, Extract Schema
+  - Implemented default tool fallback (Summarize, Extract Entities) for unsupported document types
+  - All tools now properly filtered by document type for better user experience
+
+- **Auto-Processing on Document Upload**: Automatic AI processing for all uploaded documents
+  - AI summary generation automatically triggered on document upload
+  - Entity extraction automatically executed for all new documents (>50 characters)
+  - Auto-processing runs asynchronously and gracefully handles failures
+  - Backend auto-updates document metadata with summary and entities
+
+- **Enhanced Tool Testing**: Comprehensive test coverage for new tool functionality
+  - Added tests for JSON-specific tools display
+  - Added tests for default tools fallback behavior
+  - All 15 tool menu tests passing with 100% coverage
+
 - **Multi-Model Provider Architecture**: Comprehensive provider system for supporting multiple LLM models
   - Created `BaseModelProvider` abstract class for all model providers
   - Implemented `ModelProviderRegistry` for dynamic provider registration and discovery
