@@ -4,6 +4,8 @@ import type { DocumentMessage } from '../../services/api';
 import { documentApi } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
 import { logger } from '../../services/logging';
+import { API_BASE_URL } from '../../config/api.config';
+import { wsService } from '../../services/websocket';
 import { ViewerTabBar } from './ViewerTabBar';
 import type { ViewerTab } from './ViewerTabBar';
 import { ViewerToolbar } from './ViewerToolbar';
@@ -61,7 +63,7 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
 
           // Load original PDF URL if file_path exists
           if (document.metadata.file_path) {
-            const pdfUrl = `${import.meta.env.VITE_API_URL}/documents/${documentId}/file`;
+            const pdfUrl = `${API_BASE_URL}/api/documents/${documentId}/file`;
             setOriginalPdfUrl(pdfUrl);
             logger.info('Original PDF available', { documentId, pdfUrl });
           } else {
@@ -80,6 +82,22 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
       };
 
       loadContent();
+
+      // Listen for document updates via WebSocket
+      const documentId = document.metadata.document_id;
+      const unsubscribe = wsService.onDocumentUpdated((data: any) => {
+        const updatedDocId = data.document_id || data.id;
+        if (updatedDocId === documentId) {
+          logger.info('Document updated via WebSocket, reloading content', { documentId, data });
+          // Invalidate cache and reload
+          documentContentService.invalidateCache(documentId);
+          loadContent();
+        }
+      });
+
+      return () => {
+        unsubscribe();
+      };
     }, [document]);
 
     // Handle content changes

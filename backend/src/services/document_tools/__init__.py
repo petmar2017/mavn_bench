@@ -7,7 +7,6 @@ Tools are automatically discovered on startup and can be dynamically executed vi
 from .base_tool import (
     BaseDocumentTool,
     DocumentToolMetadata,
-    ToolCategory,
     DocumentToolCategory,
     DocumentToolCapability,
 )
@@ -17,7 +16,6 @@ from .tool_decorators import register_document_tool, initialize_document_tools
 __all__ = [
     "BaseDocumentTool",
     "DocumentToolMetadata",
-    "ToolCategory",
     "DocumentToolCategory",
     "DocumentToolCapability",
     "DocumentToolRegistry",

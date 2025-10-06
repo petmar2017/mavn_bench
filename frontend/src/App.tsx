@@ -14,6 +14,7 @@ import { wsService } from './services/websocket';
 import { logger } from './services/logging';
 import type { DocumentMessage, SearchResult, DocumentMetadata } from './types/document';
 import { documentApi } from './services/api';
+import { documentContentService } from './services/documentContent';
 
 // Initialize logger
 logger.info('Application starting', {
@@ -130,11 +131,25 @@ function AppContent() {
       }
     });
 
+    // Subscribe to document update events
+    const unsubDocUpdate = wsService.onDocumentUpdated((data: any) => {
+      const documentId = data.document_id || data.id;
+      logger.info('Document updated via WebSocket', { documentId, data });
+      // Invalidate content cache to force refetch
+      if (documentId) {
+        documentContentService.invalidateCache(documentId);
+      }
+      // Trigger refresh of document list
+      setRefreshDocuments(prev => prev + 1);
+      // If Bench is open with this document, it will refetch when content is accessed
+    });
+
     return () => {
       unsubscribe();
       unsubQueue();
       unsubComplete();
       unsubFailed();
+      unsubDocUpdate();
       wsService.disconnect();
     };
   }, []); // Empty dependency array - only connect once on mount

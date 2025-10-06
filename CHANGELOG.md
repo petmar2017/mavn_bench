@@ -5,7 +5,25 @@ All notable changes to the Mavn Bench project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-09-15
+## [Unreleased] - 2025-10-05
+
+### Fixed
+- **PDF Viewer URL Construction**: Fixed iframe recursive loading issue in PDFViewer component
+  - Changed from `import.meta.env.VITE_API_URL` to `API_BASE_URL` from centralized config
+  - PDF files now display correctly instead of loading the entire website recursively
+  - Fixed `frontend/src/components/Bench/PDFViewer.tsx` URL construction
+
+- **Real-Time Document Updates**: Fixed missing summary/transcript after upload
+  - Added WebSocket listener for `document:updated` events in App.tsx
+  - PDFViewer now auto-reloads content when document is updated via WebSocket
+  - Document content cache invalidation on updates for fresh data fetch
+  - Summary and transcript now appear automatically after processing completes
+  - No page reload required to see processed content
+
+- **Backend Import Errors**: Fixed document tools module import issues
+  - Removed non-existent `ToolCategory` import from `document_tools/__init__.py`
+  - Corrected exports in `__all__` list to match actual module exports
+  - Backend server now starts successfully without import errors
 
 ### Added
 
