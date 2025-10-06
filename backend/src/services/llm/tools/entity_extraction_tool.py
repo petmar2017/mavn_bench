@@ -60,7 +60,7 @@ class EntityExtractionTool(BaseLLMTool):
                     "description": "List of extracted entities"
                 }
             },
-            max_input_length=50000,
+            max_input_length=500000,  # Can handle long documents via chunking
             supports_streaming=False
         )
 
@@ -91,22 +91,76 @@ class EntityExtractionTool(BaseLLMTool):
                 "MONEY", "PRODUCT", "EVENT", "EMAIL", "PHONE"
             ]
 
-        # Prepare prompt
-        prompt = self._prepare_prompt(text, entity_types)
-
-        # Call LLM
-        if self.llm_client:
-            response = await self.call_llm(
-                prompt=prompt,
-                max_tokens=1000,  # Entities shouldn't need much
-                temperature=0.3  # Lower temperature for consistency
-            )
-            entities = self._parse_entities(response)
+        # Handle long documents by chunking
+        max_chunk_size = 40000  # Leave room for prompt overhead
+        if len(text) > max_chunk_size:
+            entities = await self._extract_from_chunks(text, entity_types, max_chunk_size)
         else:
-            # Fallback for testing
-            entities = self._generate_fallback_entities(text, entity_types)
+            # Prepare prompt
+            prompt = self._prepare_prompt(text, entity_types)
+
+            # Call LLM
+            if self.llm_client:
+                response = await self.call_llm(
+                    prompt=prompt,
+                    max_tokens=1000,  # Entities shouldn't need much
+                    temperature=0.3  # Lower temperature for consistency
+                )
+                entities = self._parse_entities(response)
+            else:
+                # Fallback for testing
+                entities = self._generate_fallback_entities(text, entity_types)
 
         return {"entities": [entity.to_dict() for entity in entities]}
+
+    async def _extract_from_chunks(
+        self,
+        text: str,
+        entity_types: List[str],
+        chunk_size: int
+    ) -> List[Entity]:
+        """Extract entities from long text by processing in chunks
+
+        Args:
+            text: Full text to process
+            entity_types: Types of entities to extract
+            chunk_size: Maximum size of each chunk
+
+        Returns:
+            Combined list of unique entities from all chunks
+        """
+        entities_dict = {}  # Use dict to deduplicate by text
+
+        # Split text into overlapping chunks to avoid missing entities at boundaries
+        overlap = 500  # Characters of overlap between chunks
+        chunks = []
+        start = 0
+
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            chunks.append(text[start:end])
+            start = end - overlap if end < len(text) else end
+
+        # Process each chunk
+        for chunk in chunks:
+            if self.llm_client:
+                prompt = self._prepare_prompt(chunk, entity_types)
+                response = await self.call_llm(
+                    prompt=prompt,
+                    max_tokens=1000,
+                    temperature=0.3
+                )
+                chunk_entities = self._parse_entities(response)
+            else:
+                chunk_entities = self._generate_fallback_entities(chunk, entity_types)
+
+            # Deduplicate entities - keep highest confidence
+            for entity in chunk_entities:
+                key = (entity.text.lower(), entity.entity_type)
+                if key not in entities_dict or entity.confidence > entities_dict[key].confidence:
+                    entities_dict[key] = entity
+
+        return list(entities_dict.values())
 
     def _prepare_prompt(self, text: str, entity_types: List[str]) -> str:
         """Prepare the entity extraction prompt"""

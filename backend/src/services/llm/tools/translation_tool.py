@@ -43,7 +43,7 @@ class TranslationTool(BaseLLMTool):
                     "description": "Detected or provided source language code"
                 }
             },
-            max_input_length=50000,
+            max_input_length=500000,  # Can handle long documents via chunking
             supports_streaming=False
         )
 
@@ -70,20 +70,25 @@ class TranslationTool(BaseLLMTool):
                 "source_language": "unknown"
             }
 
-        # Prepare prompt
-        prompt = self._prepare_prompt(text, source_language)
-
-        # Call LLM
-        if self.llm_client:
-            response = await self.call_llm(
-                prompt=prompt,
-                max_tokens=len(text.split()) * 2,  # Rough estimate for translation
-                temperature=0.3  # Low temperature for accuracy
-            )
-            translated_text = self._parse_translation(response)
+        # Handle long documents by chunking
+        max_chunk_size = 40000  # Leave room for prompt overhead
+        if len(text) > max_chunk_size:
+            translated_text = await self._translate_in_chunks(text, source_language, max_chunk_size)
         else:
-            # Fallback for testing
-            translated_text = text  # Return original if no LLM
+            # Prepare prompt
+            prompt = self._prepare_prompt(text, source_language)
+
+            # Call LLM
+            if self.llm_client:
+                response = await self.call_llm(
+                    prompt=prompt,
+                    max_tokens=len(text.split()) * 2,  # Rough estimate for translation
+                    temperature=0.3  # Low temperature for accuracy
+                )
+                translated_text = self._parse_translation(response)
+            else:
+                # Fallback for testing
+                translated_text = text  # Return original if no LLM
 
         return {
             "translated_text": translated_text,
@@ -137,3 +142,51 @@ English translation:"""
                 break
 
         return translation
+
+    async def _translate_in_chunks(
+        self,
+        text: str,
+        source_language: str,
+        chunk_size: int
+    ) -> str:
+        """Translate long text by processing in chunks
+
+        Args:
+            text: Full text to translate
+            source_language: Source language code or "auto"
+            chunk_size: Maximum size of each chunk
+
+        Returns:
+            Complete translated text
+        """
+        translated_chunks = []
+
+        # Split text into overlapping chunks to maintain context
+        overlap = 500  # Characters of overlap between chunks
+        chunks = []
+        start = 0
+
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            chunks.append(text[start:end])
+            start = end - overlap if end < len(text) else end
+
+        # Process each chunk
+        for chunk in chunks:
+            prompt = self._prepare_prompt(chunk, source_language)
+
+            if self.llm_client:
+                response = await self.call_llm(
+                    prompt=prompt,
+                    max_tokens=len(chunk.split()) * 2,  # Rough estimate for translation
+                    temperature=0.3  # Low temperature for accuracy
+                )
+                translated_chunk = self._parse_translation(response)
+            else:
+                # Fallback for testing
+                translated_chunk = chunk
+
+            translated_chunks.append(translated_chunk)
+
+        # Concatenate all translated chunks
+        return " ".join(translated_chunks)

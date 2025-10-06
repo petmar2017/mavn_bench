@@ -5,7 +5,22 @@ All notable changes to the Mavn Bench project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-10-05
+## [Unreleased] - 2025-10-06
+
+### Fixed
+
+- **LLM Tool Length Handling**: Fixed 500 Internal Server Error when processing long documents
+  - Entity extraction tool now supports documents up to 500K characters via chunking
+  - Chunking uses 40K character chunks with 500 character overlap to preserve context
+  - Deduplication logic ensures same entity across chunks is kept with highest confidence
+  - Language detection tool increased max length to 1M characters (only uses first 500 chars)
+  - Translation tool now supports documents up to 500K characters via chunking
+  - All three tools follow consistent chunking patterns and error handling
+
+- **Tool Testing Infrastructure**: Created comprehensive test suite for LLM tools
+  - Added test_llm_tools.py with 22 test cases covering edge cases
+  - Tests validate chunking functionality, deduplication, and fallback modes
+  - Coverage for entity extraction (73%), language detection (70%), translation (85%)
 
 ### Added
 

@@ -38,7 +38,7 @@ class LanguageDetectionTool(BaseLLMTool):
                     "description": "Confidence score (0-1)"
                 }
             },
-            max_input_length=5000,
+            max_input_length=1000000,  # Can handle any size (only uses first 500 chars)
             supports_streaming=False
         )
 
