@@ -112,6 +112,12 @@ function AppContent() {
             status: 'completed',
             progress: 100
           });
+          // Show completion notification
+          showToast({
+            title: 'Processing complete',
+            message: `${uploadItem.fileName} has been processed successfully`,
+            type: 'success'
+          });
           // Refresh documents list
           setRefreshDocuments(prev => prev + 1);
         }
@@ -135,9 +141,9 @@ function AppContent() {
     const unsubDocUpdate = wsService.onDocumentUpdated((data: any) => {
       const documentId = data.document_id || data.id;
       logger.info('Document updated via WebSocket', { documentId, data });
-      // Invalidate content cache to force refetch
+      // Clear content cache to force refetch
       if (documentId) {
-        documentContentService.invalidateCache(documentId);
+        documentContentService.clearCache(documentId);
       }
       // Trigger refresh of document list
       setRefreshDocuments(prev => prev + 1);

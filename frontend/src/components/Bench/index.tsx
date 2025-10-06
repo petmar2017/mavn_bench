@@ -6,6 +6,7 @@ import { DocumentTabs } from './DocumentTabs';
 import { ToolsMenu } from '../ToolsMenu/ToolsMenu';
 import { documentApi } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
+import { wsService } from '../../services/websocket';
 import type { DocumentMessage, DocumentMetadata } from '../../types/document';
 import { logger } from '../../services/logging';
 import styles from './Bench.module.css';
@@ -83,6 +84,39 @@ export const Bench = forwardRef<BenchRef, BenchProps>(({ selectedDocumentMetadat
       logger.debug('Set active document', { documentId: docId });
     }
   }, [selectedDocumentMetadata]);
+
+  // Listen for document updates via WebSocket and refresh open documents
+  useEffect(() => {
+    const unsubscribe = wsService.onDocumentUpdated(async (data: any) => {
+      const documentId = data.document_id || data.id;
+      logger.info('Bench received document:updated', { documentId, openDocuments: openDocuments.map(d => d.metadata.document_id) });
+
+      // Check if this document is currently open in Bench
+      const isOpen = openDocuments.some(doc => doc.metadata.document_id === documentId);
+      if (isOpen) {
+        logger.info('Refreshing open document in Bench', { documentId });
+        try {
+          // Clear content cache
+          documentContentService.clearCache(documentId);
+          // Fetch updated document
+          const updatedDoc = await documentApi.getDocument(documentId);
+          // Update in openDocuments array
+          setOpenDocuments(prev =>
+            prev.map(doc =>
+              doc.metadata.document_id === documentId ? updatedDoc : doc
+            )
+          );
+          logger.info('Successfully refreshed document in Bench', { documentId });
+        } catch (error) {
+          logger.error('Failed to refresh document in Bench', { documentId, error });
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [openDocuments]);
 
   const handleSaveDocument = async (documentId: string) => {
     try {

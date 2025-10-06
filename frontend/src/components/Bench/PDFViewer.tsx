@@ -85,13 +85,22 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
 
       // Listen for document updates via WebSocket
       const documentId = document.metadata.document_id;
+      logger.info('Setting up WebSocket listener for document updates', { documentId });
       const unsubscribe = wsService.onDocumentUpdated((data: any) => {
         const updatedDocId = data.document_id || data.id;
+        logger.info('Received document:updated event', {
+          updatedDocId,
+          currentDocId: documentId,
+          matches: updatedDocId === documentId,
+          data
+        });
         if (updatedDocId === documentId) {
-          logger.info('Document updated via WebSocket, reloading content', { documentId, data });
-          // Invalidate cache and reload
-          documentContentService.invalidateCache(documentId);
+          logger.info('Document matches! Reloading content', { documentId });
+          // Clear cache and reload
+          documentContentService.clearCache(documentId);
           loadContent();
+        } else {
+          logger.debug('Document does not match, ignoring', { updatedDocId, documentId });
         }
       });
 

@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Corrected exports in `__all__` list to match actual module exports
   - Backend server now starts successfully without import errors
 
+- **Processing Completion Notifications**: Added success toast notifications
+  - Added toast notification in `queue:job_completed` WebSocket handler
+  - Users now see "Processing complete" message when document processing finishes
+  - Toast includes document name for clarity
+
+- **Bench Component Real-Time Updates**: Fixed document data not refreshing after processing
+  - Added WebSocket listener in Bench component for `document:updated` events
+  - Bench now refetches and updates open documents when processing completes
+  - Document content cache properly cleared using `clearCache()` method
+  - React components re-render with fresh data automatically
+  - Fixed TypeError from calling non-existent `invalidateCache()` method
+
 ### Added
 
 - **Generic Storage File Operations**: Extended all storage adapters with file operation support
