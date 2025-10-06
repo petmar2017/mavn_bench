@@ -59,10 +59,15 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
           setSummary(summaryContent);
           setOriginalSummary(summaryContent);
 
-          // For original PDF view, we'd need to get the original file URL
-          // This would require backend support to serve the original PDF
-          // For now, we'll display a message
-          setOriginalPdfUrl(null); // Would be set to actual PDF URL when backend supports it
+          // Load original PDF URL if file_path exists
+          if (document.metadata.file_path) {
+            const pdfUrl = `${import.meta.env.VITE_API_URL}/documents/${documentId}/file`;
+            setOriginalPdfUrl(pdfUrl);
+            logger.info('Original PDF available', { documentId, pdfUrl });
+          } else {
+            setOriginalPdfUrl(null);
+            logger.info('No original PDF file available', { documentId });
+          }
 
           setIsModified(false);
           logger.info('Loaded PDF document content', { documentId });

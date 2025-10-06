@@ -287,6 +287,72 @@ async def get_document_content(
         return content_data
 
 
+@router.get("/{document_id}/file")
+async def get_document_file(
+    document_id: str,
+    user: Dict = Depends(get_current_user),
+    service: DocumentService = Depends(get_document_service)
+) -> StreamingResponse:
+    """Serve original uploaded file for a document
+
+    Args:
+        document_id: Document ID
+        user: Current user
+        service: Document service
+
+    Returns:
+        Original file as streaming response
+
+    Raises:
+        HTTPException: If document or file not found
+    """
+    with tracer.start_as_current_span("get_document_file") as span:
+        span.set_attribute("document.id", document_id)
+        span.set_attribute("user.id", user["user_id"])
+
+        # Get document metadata
+        document = await service.get_document(document_id, user["user_id"])
+
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document {document_id} not found"
+            )
+
+        # Check if file_path exists
+        if not document.metadata.file_path:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Original file not available for document {document_id}"
+            )
+
+        # Get file extension from file_path
+        file_ext = Path(document.metadata.file_path).suffix
+
+        # Get file content from storage
+        storage = service.storage
+        file_content = await storage.get_file(document_id, file_ext)
+
+        if not file_content:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File not found for document {document_id}"
+            )
+
+        # Determine MIME type
+        mime_type = document.metadata.mime_type or "application/octet-stream"
+
+        # Return file as streaming response
+        import io
+        return StreamingResponse(
+            io.BytesIO(file_content),
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{document.metadata.name}{file_ext}"'
+            }
+        )
+
+
 @router.put("/{document_id}", response_model=DocumentMessage)
 async def update_document(
     document_id: str,
@@ -744,6 +810,24 @@ async def upload_document(
                     # Handle files that need processing (PDF, Word, Excel, etc.)
                     # Create document with PENDING status
                     document_id = str(uuid.uuid4())
+
+                    # Save original file to storage for PDF files
+                    file_path = None
+                    mime_type_map = {
+                        '.pdf': 'application/pdf',
+                        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        '.doc': 'application/msword',
+                        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        '.xls': 'application/vnd.ms-excel'
+                    }
+                    mime_type = mime_type_map.get(file_ext, "application/octet-stream")
+
+                    if doc_type == DocumentType.PDF:
+                        # Save original PDF file
+                        storage = service.storage
+                        file_path = await storage.save_file(document_id, content, file_ext)
+                        logger.info(f"Saved original PDF file for document {document_id}: {file_path}")
+
                     metadata = DocumentMetadata(
                         document_id=document_id,
                         document_type=doc_type,
@@ -751,6 +835,8 @@ async def upload_document(
                         summary="Waiting for processing...",  # Will be replaced during processing
                         language="en",  # Default, will be detected during processing
                         file_size=len(content),
+                        mime_type=mime_type,
+                        file_path=file_path,  # Store file path for PDFs
                         created_user=user["user_id"],
                         updated_user=user["user_id"],
                         processing_stage=ProcessingStage.PENDING  # Set initial status

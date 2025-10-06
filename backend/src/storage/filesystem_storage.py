@@ -39,8 +39,9 @@ class FilesystemStorage(StorageAdapter):
         self.documents_dir = self.base_path / "documents"
         self.versions_dir = self.base_path / "versions"
         self.metadata_dir = self.base_path / "metadata"
+        self.files_dir = self.base_path / "files"  # For original uploaded files
 
-        for directory in [self.documents_dir, self.versions_dir, self.metadata_dir]:
+        for directory in [self.documents_dir, self.versions_dir, self.metadata_dir, self.files_dir]:
             directory.mkdir(parents=True, exist_ok=True)
 
         self.logger.info(f"Initialized filesystem storage at {self.base_path}")
@@ -62,6 +63,11 @@ class FilesystemStorage(StorageAdapter):
     def _get_versions_index_path(self, document_id: str) -> Path:
         """Get the file path for versions index"""
         return self.versions_dir / document_id / "index.json"
+
+    def _get_file_path(self, document_id: str, extension: str = "") -> Path:
+        """Get the file path for storing original uploaded file"""
+        filename = f"{document_id}{extension}"
+        return self.files_dir / filename
 
     async def store(self, document_id: str, document_data: Dict[str, Any]) -> bool:
         """Store a document to filesystem (alias for compatibility)"""
@@ -471,3 +477,97 @@ class FilesystemStorage(StorageAdapter):
                     "storage_type": self.storage_type,
                     "error": str(e)
                 }
+
+    async def save_file(
+        self,
+        document_id: str,
+        file_content: bytes,
+        extension: str = ""
+    ) -> str:
+        """Save original uploaded file to storage
+
+        Args:
+            document_id: Document ID
+            file_content: File content as bytes
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            Relative file path
+
+        Raises:
+            StorageError: If save fails
+        """
+        with self.traced_operation("save_file", document_id=document_id):
+            try:
+                file_path = self._get_file_path(document_id, extension)
+
+                async with aiofiles.open(file_path, 'wb') as f:
+                    await f.write(file_content)
+
+                # Return relative path from base_path
+                relative_path = str(file_path.relative_to(self.base_path))
+                self.logger.info(f"Saved file for document {document_id}: {relative_path}")
+                return relative_path
+
+            except Exception as e:
+                self.logger.error(f"Failed to save file for {document_id}: {str(e)}")
+                raise StorageError(f"Failed to save file: {str(e)}") from e
+
+    async def get_file(self, document_id: str, extension: str = "") -> Optional[bytes]:
+        """Retrieve original uploaded file
+
+        Args:
+            document_id: Document ID
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            File content as bytes, or None if not found
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        with self.traced_operation("get_file", document_id=document_id):
+            try:
+                file_path = self._get_file_path(document_id, extension)
+
+                if not await aiofiles.os.path.exists(file_path):
+                    self.logger.warning(f"File not found: {file_path}")
+                    return None
+
+                async with aiofiles.open(file_path, 'rb') as f:
+                    content = await f.read()
+
+                self.logger.info(f"Retrieved file for document {document_id}")
+                return content
+
+            except Exception as e:
+                self.logger.error(f"Failed to get file for {document_id}: {str(e)}")
+                raise StorageError(f"Failed to get file: {str(e)}") from e
+
+    async def delete_file(self, document_id: str, extension: str = "") -> bool:
+        """Delete original uploaded file
+
+        Args:
+            document_id: Document ID
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            True if deleted, False if not found
+
+        Raises:
+            StorageError: If deletion fails
+        """
+        with self.traced_operation("delete_file", document_id=document_id):
+            try:
+                file_path = self._get_file_path(document_id, extension)
+
+                if not await aiofiles.os.path.exists(file_path):
+                    return False
+
+                await aiofiles.os.remove(file_path)
+                self.logger.info(f"Deleted file for document {document_id}")
+                return True
+
+            except Exception as e:
+                self.logger.error(f"Failed to delete file for {document_id}: {str(e)}")
+                raise StorageError(f"Failed to delete file: {str(e)}") from e

@@ -319,3 +319,94 @@ class TestFilesystemStorage:
         loaded = await storage.load("large-doc")
         assert loaded is not None
         assert len(loaded.content.formatted_content) == len(large_content)
+
+
+    @pytest.mark.asyncio
+    async def test_save_file(self, storage, temp_dir):
+        """Test saving original file to storage"""
+        # Create test PDF content
+        pdf_content = b"%PDF-1.4 Test PDF content"
+        document_id = "test-doc-001"
+        
+        # Save file
+        file_path = await storage.save_file(document_id, pdf_content, ".pdf")
+        
+        # Check file was created
+        assert file_path is not None
+        assert file_path == f"files/{document_id}.pdf"
+        
+        # Verify file exists
+        full_path = temp_dir / "files" / f"{document_id}.pdf"
+        assert full_path.exists()
+        
+        # Verify content
+        with open(full_path, 'rb') as f:
+            saved_content = f.read()
+            assert saved_content == pdf_content
+
+    @pytest.mark.asyncio
+    async def test_get_file(self, storage, temp_dir):
+        """Test retrieving original file from storage"""
+        # Create test file
+        pdf_content = b"%PDF-1.4 Test PDF content"
+        document_id = "test-doc-002"
+        
+        # Save file first
+        await storage.save_file(document_id, pdf_content, ".pdf")
+        
+        # Retrieve file
+        retrieved_content = await storage.get_file(document_id, ".pdf")
+        
+        assert retrieved_content is not None
+        assert retrieved_content == pdf_content
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_file(self, storage):
+        """Test retrieving a file that doesn't exist"""
+        result = await storage.get_file("nonexistent-id", ".pdf")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_delete_file(self, storage, temp_dir):
+        """Test deleting original file from storage"""
+        # Create test file
+        pdf_content = b"%PDF-1.4 Test PDF content"
+        document_id = "test-doc-003"
+        
+        # Save file first
+        await storage.save_file(document_id, pdf_content, ".pdf")
+        
+        # Verify file exists
+        full_path = temp_dir / "files" / f"{document_id}.pdf"
+        assert full_path.exists()
+        
+        # Delete file
+        success = await storage.delete_file(document_id, ".pdf")
+        
+        assert success is True
+        assert not full_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_file(self, storage):
+        """Test deleting a file that doesn't exist"""
+        success = await storage.delete_file("nonexistent-id", ".pdf")
+        assert success is False
+
+    @pytest.mark.asyncio
+    async def test_save_file_multiple_extensions(self, storage, temp_dir):
+        """Test saving files with different extensions"""
+        document_id = "test-doc-004"
+        
+        # Save PDF
+        pdf_content = b"%PDF-1.4 PDF content"
+        pdf_path = await storage.save_file(document_id, pdf_content, ".pdf")
+        assert pdf_path == f"files/{document_id}.pdf"
+        
+        # Save DOCX (different extension, should not overwrite PDF)
+        docx_content = b"PK\x03\x04 DOCX content"
+        docx_path = await storage.save_file(f"{document_id}_doc", docx_content, ".docx")
+        assert docx_path == f"files/{document_id}_doc.docx"
+        
+        # Verify both files exist
+        assert (temp_dir / "files" / f"{document_id}.pdf").exists()
+        assert (temp_dir / "files" / f"{document_id}_doc.docx").exists()

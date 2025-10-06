@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Original PDF File Viewing**: Display original uploaded PDF files in the document viewer
+  - Added backend endpoint `/api/documents/{id}/file` to serve original PDF files
+  - Extended FilesystemStorage with `save_file()`, `get_file()`, and `delete_file()` methods
+  - Modified document upload handler to save original PDF files permanently
+  - Updated PDFViewer component to fetch and display original PDFs in iframe
+  - Added `file_path` and `mime_type` fields to DocumentMetadata model
+  - Implemented comprehensive unit tests for file storage operations (100% coverage)
+
 - **Document Type-Specific Tool Recommendations**: Enhanced tool discovery system with JSON-specific tools
   - Added 3 JSON-specific tools: Validate JSON, Format JSON, Extract Schema
   - Implemented default tool fallback (Summarize, Extract Entities) for unsupported document types
