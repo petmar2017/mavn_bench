@@ -84,6 +84,19 @@ class WebScrapeRequest(BaseModel):
     save_as_document: bool = Field(True, description="Save scraped content as new document")
 
 
+class LanguageDetectionRequest(BaseModel):
+    """Request model for language detection"""
+    document_id: str = Field(..., description="Document ID for language detection")
+    update_document: bool = Field(True, description="Update document with detected language")
+
+
+class TranslationRequest(BaseModel):
+    """Request model for translation"""
+    document_id: str = Field(..., description="Document ID to translate")
+    source_language: Optional[str] = Field(None, description="Source language code (auto-detect if not provided)")
+    update_document: bool = Field(True, description="Update document with translation")
+
+
 class ProcessingResponse(BaseModel):
     """Generic response for processing operations"""
     success: bool
@@ -672,6 +685,188 @@ async def scrape_webpage(
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Web scraping failed: {str(e)}"
+            )
+
+
+@router.post("/detect-language", response_model=ProcessingResponse)
+async def detect_language(
+    request: LanguageDetectionRequest,
+    user: Dict = Depends(get_current_user),
+    document_service: DocumentService = Depends(get_document_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    trace_context: Dict = Depends(verify_trace_context)
+) -> ProcessingResponse:
+    """Detect the language of a document
+
+    Args:
+        request: Language detection request
+        user: Current user
+        document_service: Document service
+        llm_service: LLM service
+        trace_context: W3C trace context
+
+    Returns:
+        Processing response with detected language
+
+    Raises:
+        HTTPException: If detection fails
+    """
+    with tracer.start_as_current_span("detect_language") as span:
+        span.set_attribute("user.id", user["user_id"])
+        span.set_attribute("document.id", request.document_id)
+        start_time = datetime.utcnow()
+
+        try:
+            # Get document
+            document = await document_service.get_document(request.document_id, user["user_id"])
+            if not document:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document {request.document_id} not found"
+                )
+
+            # Extract text from document content
+            document_text = document.content.formatted_content or document.content.raw_text
+            if not document_text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Document {request.document_id} has no processable text content"
+                )
+
+            # Detect language
+            result = await llm_service.detect_language(document_text)
+            language = result.get("language", "en")
+            confidence = result.get("confidence", 0.5)
+
+            # Update document metadata if requested
+            if request.update_document:
+                updates = {
+                    "metadata": {
+                        "language": language
+                    }
+                }
+                await document_service.update_document(
+                    request.document_id,
+                    updates,
+                    user["user_id"]
+                )
+
+            processing_time = (datetime.utcnow() - start_time).total_seconds()
+
+            return ProcessingResponse(
+                success=True,
+                document_id=request.document_id,
+                result={
+                    "language": language,
+                    "confidence": confidence
+                },
+                message=f"Language detected: {language}",
+                processing_time=processing_time
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Language detection failed: {str(e)}")
+            span.record_exception(e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Language detection failed: {str(e)}"
+            )
+
+
+@router.post("/translate", response_model=ProcessingResponse)
+async def translate_document(
+    request: TranslationRequest,
+    user: Dict = Depends(get_current_user),
+    document_service: DocumentService = Depends(get_document_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    trace_context: Dict = Depends(verify_trace_context)
+) -> ProcessingResponse:
+    """Translate a document to English
+
+    Args:
+        request: Translation request
+        user: Current user
+        document_service: Document service
+        llm_service: LLM service
+        trace_context: W3C trace context
+
+    Returns:
+        Processing response with translated text
+
+    Raises:
+        HTTPException: If translation fails
+    """
+    with tracer.start_as_current_span("translate_document") as span:
+        span.set_attribute("user.id", user["user_id"])
+        span.set_attribute("document.id", request.document_id)
+        start_time = datetime.utcnow()
+
+        try:
+            # Get document
+            document = await document_service.get_document(request.document_id, user["user_id"])
+            if not document:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document {request.document_id} not found"
+                )
+
+            # Extract text from document content
+            document_text = document.content.formatted_content or document.content.raw_text
+            if not document_text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Document {request.document_id} has no processable text content"
+                )
+
+            # Translate text
+            result = await llm_service.translate_text(
+                document_text,
+                source_language=request.source_language
+            )
+            translated_text = result.get("translated_text", document_text)
+            source_language = result.get("source_language", "unknown")
+
+            # Update document with translation if requested
+            if request.update_document:
+                # Store translation in a separate field
+                updates = {
+                    "content": {
+                        "translation": translated_text
+                    },
+                    "metadata": {
+                        "source_language": source_language
+                    }
+                }
+                await document_service.update_document(
+                    request.document_id,
+                    updates,
+                    user["user_id"]
+                )
+
+            processing_time = (datetime.utcnow() - start_time).total_seconds()
+
+            return ProcessingResponse(
+                success=True,
+                document_id=request.document_id,
+                result={
+                    "translated_text": translated_text,
+                    "source_language": source_language,
+                    "text_length": len(translated_text)
+                },
+                message="Document translated successfully",
+                processing_time=processing_time
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Translation failed: {str(e)}")
+            span.record_exception(e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Translation failed: {str(e)}"
             )
 
 

@@ -14,6 +14,7 @@ class LLMToolType(str, Enum):
     ENTITY_EXTRACTION = "entity_extraction"
     CLASSIFICATION = "classification"
     LANGUAGE_DETECTION = "language_detection"
+    TRANSLATION = "translation"
     QUESTION_ANSWERING = "question_answering"
     EMBEDDING = "embedding"
     TEXT_TO_MARKDOWN = "text_to_markdown"  # Alias for markdown formatting

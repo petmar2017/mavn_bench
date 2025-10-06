@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-05
 
+### Added
+
+- **Entity Extraction and Editing**: Enhanced document viewer with interactive entity management
+  - Added dedicated Entities tab to PDFViewer component showing extracted entities
+  - Integrated EntitiesViewer component with full entity editing capability
+  - Entities grouped by type (PERSON, ORGANIZATION, LOCATION, DATE, MONEY) with color coding
+  - Expandable/collapsible entity groups for better organization
+  - Edit entity text, type, and confidence scores directly in the UI
+  - Entities automatically loaded from document metadata
+  - Real-time entity updates saved back to document metadata
+
+- **Multi-Language Translation Support**: Server-side language detection and translation
+  - Created TranslationTool following existing LLM tool architecture pattern
+  - Added `/api/process/detect-language` endpoint for language detection
+  - Added `/api/process/translate` endpoint for server-side translation to English
+  - Language detection automatically triggers translation for non-English documents
+  - Translation tab appears conditionally when non-English language detected
+  - English translations displayed using SimpleMarkdownEditor for easy editing
+  - Translation content stored in document.content.translation field
+  - Detect Language tool automatically calls translation API when needed
+  - Added translation and language detection to frontend API service layer
+  - Full TypeScript type support for translation field in DocumentContent interface
+
+- **Dynamic Tab System**: Context-aware document viewer tabs
+  - Tabs dynamically shown based on available content (Summary, Transcript, Entities, Translation, Original)
+  - Translation tab only appears when language detected as non-English
+  - Entities tab always visible for all document types
+  - Tab system follows existing ViewerTabBar component patterns
+
 ### Fixed
 - **PDF Viewer URL Construction**: Fixed iframe recursive loading issue in PDFViewer component
   - Changed from `import.meta.env.VITE_API_URL` to `API_BASE_URL` from centralized config

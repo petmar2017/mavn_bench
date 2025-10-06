@@ -51,6 +51,7 @@ export interface DocumentContent {
   raw_content?: string;
   formatted_content?: string;
   summary?: string;
+  translation?: string;
   entities?: Entity[];
   metadata?: Record<string, any>;
   embeddings?: number[];

@@ -341,23 +341,50 @@ class LLMService(BaseService):
     async def detect_language(
         self,
         text: str
-    ) -> Tuple[str, float]:
+    ) -> Dict[str, Any]:
         """Detect the language of a text document
 
         Args:
             text: Text to analyze for language detection
 
         Returns:
-            Tuple of (language_code, confidence)
+            Dictionary with 'language' and 'confidence' keys
         """
         result = await self.execute_tool(
             LLMToolType.LANGUAGE_DETECTION,
             {"text": text}
         )
-        return (
-            result.get("language", "unknown"),
-            result.get("confidence", 0.0)
+        return {
+            "language": result.get("language", "unknown"),
+            "confidence": result.get("confidence", 0.0)
+        }
+
+    async def translate_text(
+        self,
+        text: str,
+        source_language: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Translate text to English
+
+        Args:
+            text: Text to translate
+            source_language: Optional source language code
+
+        Returns:
+            Dictionary with 'translated_text' and 'source_language' keys
+        """
+        input_data = {"text": text}
+        if source_language:
+            input_data["source_language"] = source_language
+
+        result = await self.execute_tool(
+            LLMToolType.TRANSLATION,
+            input_data
         )
+        return {
+            "translated_text": result.get("translated_text", text),
+            "source_language": result.get("source_language", source_language or "unknown")
+        }
 
     async def answer_question(
         self,

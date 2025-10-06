@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { FileText, Loader, CheckCircle, FileType, FileBarChart } from 'lucide-react';
+import { FileText, Loader, CheckCircle, FileType, FileBarChart, Tag, Languages } from 'lucide-react';
 import type { DocumentMessage } from '../../services/api';
 import { documentApi } from '../../services/api';
 import { documentContentService } from '../../services/documentContent';
@@ -10,6 +10,8 @@ import { ViewerTabBar } from './ViewerTabBar';
 import type { ViewerTab } from './ViewerTabBar';
 import { ViewerToolbar } from './ViewerToolbar';
 import { SimpleMarkdownEditor } from './SimpleMarkdownEditor';
+import { EntitiesViewer } from './EntitiesViewer';
+import type { Entity } from '../../types/document';
 import styles from './PDFViewer.module.css';
 
 interface PDFViewerProps {
@@ -25,7 +27,7 @@ export interface PDFViewerRef {
   hasUnsavedChanges: () => boolean;
 }
 
-type ViewMode = 'summary' | 'transcript' | 'original';
+type ViewMode = 'summary' | 'transcript' | 'entities' | 'translation' | 'original';
 
 export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
   ({ document, onContentChange, onDelete, onDownload, onHistory }, ref) => {
@@ -34,6 +36,9 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
     const [originalTranscript, setOriginalTranscript] = useState('');
     const [summary, setSummary] = useState('');
     const [originalSummary, setOriginalSummary] = useState('');
+    const [entities, setEntities] = useState<Entity[]>([]);
+    const [translation, setTranslation] = useState('');
+    const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
     const [originalPdfUrl, setOriginalPdfUrl] = useState<string | null>(null);
     const [isModified, setIsModified] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +65,18 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
           const summaryContent = contentData.summary || '';
           setSummary(summaryContent);
           setOriginalSummary(summaryContent);
+
+          // Load entities if available
+          const entitiesData = document.metadata.entities || [];
+          setEntities(entitiesData);
+
+          // Load translation if available
+          const translationContent = contentData.translation || '';
+          setTranslation(translationContent);
+
+          // Load detected language
+          const language = document.metadata.language || null;
+          setDetectedLanguage(language);
 
           // Load original PDF URL if file_path exists
           if (document.metadata.file_path) {
@@ -211,11 +228,20 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
       );
     }
 
+    // Build tabs dynamically based on available content
     const tabs: ViewerTab[] = [
       { id: 'summary', label: 'Summary', icon: <FileBarChart size={16} /> },
       { id: 'transcript', label: 'Transcript', icon: <FileType size={16} /> },
-      { id: 'original', label: 'Original', icon: <FileText size={16} /> },
+      { id: 'entities', label: 'Entities', icon: <Tag size={16} /> },
     ];
+
+    // Add translation tab if language is detected and not English
+    if (detectedLanguage && detectedLanguage !== 'en' && translation) {
+      tabs.push({ id: 'translation', label: 'Translation', icon: <Languages size={16} /> });
+    }
+
+    // Always add original tab last
+    tabs.push({ id: 'original', label: 'Original', icon: <FileText size={16} /> });
 
     return (
       <div className={styles.pdfViewer}>
@@ -287,6 +313,31 @@ export const PDFViewer = forwardRef<PDFViewerRef, PDFViewerProps>(
                 setSummary(newSummary);
                 setOriginalSummary(newSummary);
                 setIsModified(false);
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+              }}
+            />
+          )}
+
+          {viewMode === 'entities' && (
+            <EntitiesViewer
+              documentId={document.metadata.document_id}
+              entities={entities}
+              onEntitiesUpdate={(updatedEntities) => {
+                setEntities(updatedEntities);
+                logger.info('Entities updated', { documentId: document.metadata.document_id });
+              }}
+            />
+          )}
+
+          {viewMode === 'translation' && translation && (
+            <SimpleMarkdownEditor
+              documentId={document.metadata.document_id}
+              content={translation}
+              contentType="translation"
+              label="English Translation"
+              onSave={(newTranslation) => {
+                setTranslation(newTranslation);
                 setSaveSuccess(true);
                 setTimeout(() => setSaveSuccess(false), 3000);
               }}

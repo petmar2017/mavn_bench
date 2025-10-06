@@ -77,12 +77,16 @@ export const AVAILABLE_TOOLS: Record<string, ToolDefinition> = {
     id: 'detect_language',
     label: 'Detect Language',
     icon: Languages,
-    description: 'Detect the language of the document',
+    description: 'Detect the language of the document and translate if non-English',
     action: async (documentId: string) => {
-      // Placeholder for language detection
-      return { message: 'Language detection not yet implemented' };
+      const result = await processApi.detectLanguage(documentId);
+      // If language is not English, automatically translate
+      if (result.language && result.language !== 'en') {
+        await processApi.translate(documentId, result.language);
+      }
+      return result;
     },
-    documentTypes: ['pdf', 'word', 'markdown', 'text', 'webpage'],
+    documentTypes: ['pdf', 'word', 'markdown', 'text', 'webpage', 'youtube', 'podcast'],
     requiresConfirmation: false,
   },
   find_similar: {

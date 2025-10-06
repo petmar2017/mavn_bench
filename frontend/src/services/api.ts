@@ -230,6 +230,19 @@ export const processApi = {
     const response = await api.post<{ entities: any[] }>('/api/process/extract-entities', { document_id: documentId });
     return response.data;
   },
+
+  async detectLanguage(documentId: string) {
+    const response = await api.post<{ language: string; confidence: number }>('/api/process/detect-language', { document_id: documentId });
+    return response.data;
+  },
+
+  async translate(documentId: string, sourceLanguage?: string) {
+    const response = await api.post<{ translated_text: string; source_language: string }>('/api/process/translate', {
+      document_id: documentId,
+      source_language: sourceLanguage
+    });
+    return response.data;
+  },
 };
 
 export const healthApi = {
