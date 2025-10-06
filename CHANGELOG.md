@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-06
 
+### Added
+
+- **Generic Tool System**: Implemented unified tool architecture supporting multiple tool types
+  - Created `BaseTool` abstract class with comprehensive metadata and execution context
+  - Implemented `ToolRegistry` with advanced indexing by category, capability, and type
+  - Added decorator-based auto-registration with `@register_tool` for automatic tool discovery
+  - Created `ToolMetadata` dataclass with 20+ fields for comprehensive tool description
+  - Added `ToolExecutionContext` for trace_id, session_id, and user_id propagation
+  - Dependency injection support for services (llm_service, document_service, vector_search, etc.)
+  - Tool categories: ANALYSIS, TRANSFORMATION, GENERATION, LLM, COMPUTATION, etc.
+  - Tool capabilities: TEXT_ANALYSIS, ENTITY_RECOGNITION, TRANSLATION, SEMANTIC_SEARCH, etc.
+  - Tool types: EXECUTABLE (native Python), MCP (external servers), LLM, DOCUMENT, HYBRID
+
+- **Tool Adapters**: Created adapter pattern for external tool integration
+  - `MCPToolAdapter`: Wraps MCP server tools in unified interface via HTTP
+  - `ExecutableToolAdapter`: Wraps Python scripts/binaries as tools with subprocess execution
+  - Both adapters support input/output schemas, timeout configuration, and health checks
+  - Adapters pass through dependency injection kwargs to base tool
+
+- **Example Tools**: Implemented demonstration tools showing all patterns
+  - `WordCountTool`: Simple native Python tool with no dependencies
+  - `EchoTool`: Basic tool demonstrating execution context usage
+  - `SmartSummarizeTool`: LLM tool demonstrating dependency injection for llm_service
+  - `DocumentAnalyzerTool`: Hybrid tool using multiple services (document, llm, vector search)
+  - Auto-discovery via `load_example_tools()` function
+
+- **Tool Testing**: Comprehensive test suite with 50 tests and 60% coverage
+  - `test_base_tool.py`: 11 tests for BaseTool, ToolMetadata, validation, and context
+  - `test_tool_registry.py`: 18 tests for registration, creation, indexing, and queries
+  - `test_tool_decorators.py`: 7 tests for decorator registration and auto-discovery
+  - `test_example_tools.py`: 14 tests for all example tools with mocked dependencies
+  - All tests use real implementations (no mocks) following project standards
+
 ### Fixed
 
 - **LLM Tool Length Handling**: Fixed 500 Internal Server Error when processing long documents
