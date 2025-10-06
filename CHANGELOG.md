@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-06
 
+### Fixed
+
+- **Frontend TypeScript Import Errors**: Resolved module resolution and type definition issues
+  - Fixed incorrect import path in `entityApi.ts` from '../config' to '../config/api.config'
+  - Consolidated duplicate type definitions between `api.ts` and `types/document.ts`
+  - Added DocumentUpdateRequest type for proper partial metadata updates
+  - Fixed ExcelViewer component variable shadowing (renamed document prop to doc)
+  - Updated test fixtures with proper Entity interface (added entity_id field)
+  - Fixed type-only imports in test utilities for verbatimModuleSyntax compliance
+  - Added `frontend/src/__tests__/build.test.ts` for frontend build validation
+  - This ensures import errors are caught in tests, not just at build time
+
 ### Added
+
+- **Frontend Build Validation Tests**: Tests to catch TypeScript and import errors
+  - Created build.test.ts to validate all critical module imports succeed
+  - Tests verify Entity and EntityRelationship types are exported correctly
+  - Tests verify entityApi service and config exports
+  - Addresses issue where backend pytest doesn't validate frontend imports/builds
+  - Future frontend compilation errors will be caught during test runs
 
 - **Enhanced Entity System with Relationships**: Comprehensive entity extraction improvements with relationship support
   - Created `backend/src/models/entity.py` with Entity, EntityRelationship, and DocumentEntities models

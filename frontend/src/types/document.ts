@@ -30,6 +30,7 @@ export interface DocumentMetadata {
   summary?: string;
   language?: string;
   entities?: Entity[];
+  relationships?: EntityRelationship[];
 }
 
 /**
@@ -74,6 +75,8 @@ export interface DocumentContent {
   embeddings?: number[];
   text?: string;
   raw_text?: string;
+  // Support for createElement property used by ExcelViewer
+  createElement?: any;
 }
 
 /**
@@ -120,4 +123,15 @@ export interface SearchQuery {
   offset?: number;
   threshold?: number;
   filters?: Record<string, any>;
+}
+
+/**
+ * Document update request
+ * Supports partial updates of document fields
+ */
+export interface DocumentUpdateRequest {
+  name?: string;
+  summary?: string;
+  content?: Partial<DocumentContent>;
+  metadata?: Partial<DocumentMetadata>;
 }

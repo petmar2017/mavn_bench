@@ -1,27 +1,24 @@
-import { DocumentMessage, DocumentMetadata, DocumentContent, SearchResult } from '../services/api';
+import type { DocumentMessage, DocumentMetadata, DocumentContent, SearchResult } from '../services/api';
 
 // Mock document data
 export const mockDocumentMetadata: DocumentMetadata = {
   document_id: 'doc-123',
   name: 'test-document.pdf',
   document_type: 'pdf',
+  version: 1,
   size: 1024000,
-  mime_type: 'application/pdf',
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
   processing_status: 'completed',
-  processing_error: null,
   tags: ['test', 'pdf'],
-  custom_metadata: {},
 };
 
 export const mockDocumentContent: DocumentContent = {
   raw_text: 'This is the raw text content of the document',
-  markdown: '# Document Title\n\nThis is the markdown content',
-  structured_data: {},
+  formatted_content: '# Document Title\n\nThis is the markdown content',
+  text: 'This is the raw text content of the document',
   summary: 'A brief summary of the document',
-  entities: ['Entity1', 'Entity2'],
-  chunks: [],
+  entities: [],
   embeddings: [],
 };
 
@@ -31,10 +28,6 @@ export const mockDocument: DocumentMessage = {
   tools: ['pdf-processor', 'summarizer'],
   history: [],
   audit_log: [],
-  trace_id: 'trace-123',
-  span_id: 'span-123',
-  session_id: 'session-123',
-  user_id: 'user-123',
 };
 
 export const mockDocuments: DocumentMessage[] = [
@@ -46,7 +39,6 @@ export const mockDocuments: DocumentMessage[] = [
       document_id: 'doc-456',
       name: 'another-document.docx',
       document_type: 'word',
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     },
   },
   {
@@ -56,7 +48,6 @@ export const mockDocuments: DocumentMessage[] = [
       document_id: 'doc-789',
       name: 'presentation.pptx',
       document_type: 'powerpoint',
-      mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       processing_status: 'processing',
     },
   },

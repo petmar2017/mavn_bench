@@ -18,7 +18,7 @@ interface RowData {
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
-  document,
+  document: doc,
   onCellChange,
 }) => {
   const [rowData, setRowData] = useState<RowData[]>([]);
@@ -33,7 +33,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       setError(null);
 
       try {
-        const documentId = document.metadata.document_id;
+        const documentId = doc.metadata.document_id;
         const contentData = await documentContentService.getContent(documentId);
         const text = contentData.text || contentData.formatted_content || contentData.raw_text || '';
 
@@ -99,7 +99,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       };
 
       loadContent();
-    }, [document.metadata.document_id, onCellChange]);
+    }, [doc.metadata.document_id, onCellChange]);
 
   const defaultColDef = useMemo(() => ({
     flex: 1,
@@ -186,7 +186,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${document.metadata.name}.csv`;
+    link.download = `${doc.metadata.name}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };

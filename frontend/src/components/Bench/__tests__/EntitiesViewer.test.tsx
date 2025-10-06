@@ -23,30 +23,35 @@ describe('EntitiesViewer', () => {
   const mockDocumentId = 'doc-123';
   const mockEntities: Entity[] = [
     {
+      entity_id: 'entity-1',
       text: 'John Doe',
       entity_type: 'PERSON',
       confidence: 0.95,
       metadata: {},
     },
     {
+      entity_id: 'entity-2',
       text: 'Acme Corp',
       entity_type: 'ORGANIZATION',
       confidence: 0.88,
       metadata: {},
     },
     {
+      entity_id: 'entity-3',
       text: 'New York',
       entity_type: 'LOCATION',
       confidence: 0.92,
       metadata: {},
     },
     {
+      entity_id: 'entity-4',
       text: '2024-01-15',
       entity_type: 'DATE',
       confidence: 0.85,
       metadata: {},
     },
     {
+      entity_id: 'entity-5',
       text: '$1,000',
       entity_type: 'MONEY',
       confidence: 0.90,
@@ -379,9 +384,9 @@ describe('EntitiesViewer', () => {
   describe('Entity Grouping', () => {
     it('should group multiple entities of same type together', () => {
       const multiplePersons: Entity[] = [
-        { text: 'John Doe', entity_type: 'PERSON', confidence: 0.95, metadata: {} },
-        { text: 'Jane Smith', entity_type: 'PERSON', confidence: 0.90, metadata: {} },
-        { text: 'Bob Johnson', entity_type: 'PERSON', confidence: 0.88, metadata: {} },
+        { entity_id: 'person-1', text: 'John Doe', entity_type: 'PERSON', confidence: 0.95, metadata: {} },
+        { entity_id: 'person-2', text: 'Jane Smith', entity_type: 'PERSON', confidence: 0.90, metadata: {} },
+        { entity_id: 'person-3', text: 'Bob Johnson', entity_type: 'PERSON', confidence: 0.88, metadata: {} },
       ];
 
       render(

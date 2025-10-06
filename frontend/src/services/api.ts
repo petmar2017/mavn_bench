@@ -1,5 +1,25 @@
 import axios from 'axios';
 import { API_BASE_URL, AUTH_CONFIG, REQUEST_CONFIG } from '../config/api.config';
+import type {
+  DocumentMessage,
+  DocumentMetadata,
+  DocumentContent,
+  DocumentVersion,
+  SearchQuery,
+  SearchResult,
+  DocumentUpdateRequest,
+} from '../types/document';
+
+// Re-export types for backward compatibility
+export type {
+  DocumentMessage,
+  DocumentMetadata,
+  DocumentContent,
+  DocumentVersion,
+  SearchQuery,
+  SearchResult,
+  DocumentUpdateRequest,
+};
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,67 +37,6 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
-
-// Document types
-export interface DocumentMetadata {
-  document_id: string;
-  name: string;
-  document_type: string;
-  version: number;
-  size: number;
-  created_at: string;
-  updated_at: string;
-  deleted?: boolean;
-  deleted_at?: string | null;
-  deleted_by?: string | null;
-  user_id?: string;
-  tags?: string[];
-  source_url?: string;
-  processing_status?: string;
-  summary?: string;
-  language?: string;
-}
-
-export interface DocumentContent {
-  raw_content?: string;
-  formatted_content?: string;
-  summary?: string;
-  entities?: Array<{ name: string; type: string; confidence: number }>;
-  metadata?: Record<string, any>;
-  embeddings?: number[];
-}
-
-export interface DocumentVersion {
-  version: number;
-  timestamp: string;
-  user: string;
-  changes: Record<string, any>;
-  commit_message?: string;
-}
-
-export interface DocumentMessage {
-  id?: string;  // ID field returned by upload endpoint
-  metadata: DocumentMetadata;
-  content: DocumentContent;
-  tools?: string[];
-  history?: DocumentVersion[];
-  audit_log?: any[];
-}
-
-export interface SearchQuery {
-  query: string;
-  limit?: number;
-  offset?: number;
-  threshold?: number;
-  filters?: Record<string, any>;
-}
-
-export interface SearchResult {
-  document_id: string;
-  score: number;
-  metadata: DocumentMetadata;
-  highlights?: string[];
-}
 
 // API methods
 export const documentApi = {
@@ -109,7 +68,7 @@ export const documentApi = {
     return response.data;
   },
 
-  async updateDocument(documentId: string, data: Partial<DocumentMessage>) {
+  async updateDocument(documentId: string, data: DocumentUpdateRequest) {
     const response = await api.put<DocumentMessage>(`/api/documents/${documentId}`, data);
     return response.data;
   },
