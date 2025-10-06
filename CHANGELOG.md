@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Verbose Document Logging**: Reduced log noise by changing document listing logs from INFO to DEBUG level
+  - Document enumeration logs in `/api/documents` endpoint now only appear in debug mode
+  - Eliminates repetitive document detail logs flooding production console
+  - Maintains debug capability for troubleshooting when needed
+
 - **PDF Summary Generation**: Fixed issue where PDF summaries showed first line of text instead of AI-generated summaries
   - Root cause: Backend startup failures due to stale Python `.pyc` cache files preventing import of document_tools module
   - Solution: Cleaned Python cache files to resolve `ImportError` in document_tools imports

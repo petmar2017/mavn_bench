@@ -488,10 +488,10 @@ async def list_documents(
                 offset=pagination.offset
             )
 
-        # Log detailed information about each document
-        logger.info(f"[API] list_documents - Retrieved {len(documents)} documents from service for user {user['user_id']}")
+        # Log detailed information about each document (debug only)
+        logger.debug(f"[API] list_documents - Retrieved {len(documents)} documents from service for user {user['user_id']}")
         for idx, doc in enumerate(documents):
-            logger.info(f"[API] Document {idx}: id={doc.metadata.document_id}, name={doc.metadata.name}, type={doc.metadata.document_type}, deleted={getattr(doc.metadata, 'deleted', False)}")
+            logger.debug(f"[API] Document {idx}: id={doc.metadata.document_id}, name={doc.metadata.name}, type={doc.metadata.document_type}, deleted={getattr(doc.metadata, 'deleted', False)}")
 
         # Filter by type if specified
         if document_type:
