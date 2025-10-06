@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Document Summary WebSocket Notification**: Fixed issue where document summaries were not properly delivered to frontend
+  - Root cause: WebSocket payload was constructed before AI summary generation, causing summary to be missing from initial notification
+  - Solution: Added `emit_document_updated` WebSocket event after summary is generated and saved to database
+  - Frontend now receives complete summary in real-time via document_updated event
+  - Improved logging for WebSocket emissions to aid in future debugging
+  - Follows existing project patterns for WebSocket communication and error handling
+
 - **LLM Tool Length Handling**: Fixed 500 Internal Server Error when processing long documents
   - Entity extraction tool now supports documents up to 500K characters via chunking
   - Chunking uses 40K character chunks with 500 character overlap to preserve context

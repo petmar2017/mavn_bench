@@ -31,7 +31,7 @@ from ..dependencies import (
     PaginationParams,
     verify_trace_context
 )
-from ..socketio_app import emit_document_created, get_connected_clients_count, get_connected_clients_info, test_emit_to_all
+from ..socketio_app import emit_document_created, emit_document_updated, get_connected_clients_count, get_connected_clients_info, test_emit_to_all
 
 
 router = APIRouter()
@@ -719,12 +719,33 @@ async def upload_document(
                                     style="concise"
                                 )
                                 # Update document with AI summary
-                                await service.update_document(
+                                updated_doc = await service.update_document(
                                     document_id,
                                     {"metadata": {"summary": ai_summary}},
                                     user["user_id"]
                                 )
                                 logger.info(f"AI summary generated for document {document_id}")
+
+                                # Emit websocket event to notify frontend of summary update
+                                if updated_doc:
+                                    summary_update_payload = {
+                                        "document_id": document_id,
+                                        "id": document_id,
+                                        "name": updated_doc.metadata.name,
+                                        "document_type": updated_doc.metadata.document_type.value,
+                                        "summary": ai_summary,
+                                        "metadata": {
+                                            "id": updated_doc.metadata.id,
+                                            "name": updated_doc.metadata.name,
+                                            "summary": ai_summary,
+                                            "document_type": updated_doc.metadata.document_type.value
+                                        }
+                                    }
+                                    try:
+                                        await emit_document_updated(summary_update_payload)
+                                        logger.info(f"[WEBSOCKET-EMIT] Successfully emitted document_updated event with summary for {document_id}")
+                                    except Exception as e:
+                                        logger.warning(f"[WEBSOCKET-EMIT] Failed to emit document_updated event for summary: {str(e)}")
                             except Exception as e:
                                 logger.warning(f"Failed to generate AI summary for {document_id}: {str(e)}")
 
