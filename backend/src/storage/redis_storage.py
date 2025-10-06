@@ -132,7 +132,7 @@ class RedisStorage(StorageAdapter):
                 # Execute pipeline
                 await pipe.execute()
 
-                self.logger.info(f"Saved document {document_id} to Redis with TTL {self.ttl_seconds}s")
+                self.logger.debug(f"Saved document {document_id} to Redis with TTL {self.ttl_seconds}s")
                 return True
 
             except RedisError as e:
@@ -158,7 +158,7 @@ class RedisStorage(StorageAdapter):
                 # Refresh TTL on access
                 await self.redis_client.expire(document_key, self.ttl_seconds)
 
-                self.logger.info(f"Loaded document {document_id} from Redis")
+                self.logger.debug(f"Loaded document {document_id} from Redis")
                 return document
 
             except json.JSONDecodeError as e:

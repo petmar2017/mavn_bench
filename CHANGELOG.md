@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Verbose Redis Storage Logging**: Reduced log noise by changing Redis storage operations from INFO to DEBUG level
+  - Document load/save operations in Redis storage now only appear in debug mode
+  - Eliminates repetitive storage operation logs flooding production console
+  - Maintains debug capability for troubleshooting when needed
+
 - **Verbose Document Logging**: Reduced log noise by changing document listing logs from INFO to DEBUG level
   - Document enumeration logs in `/api/documents` endpoint now only appear in debug mode
   - Eliminates repetitive document detail logs flooding production console
