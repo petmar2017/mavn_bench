@@ -633,14 +633,19 @@ class QueueService(BaseService):
                     logger.debug(f"Failed to emit progress update: {ws_error}")
 
             # Process the document using the centralized processor
+            self.logger.info(f"[QUEUE-PROCESS] Starting document processing for {document_id}")
             processed_document = await processor.process_document(
                 file_path,
                 document,
                 progress_callback
             )
+            self.logger.info(f"[QUEUE-PROCESS] Document processing completed for {document_id}")
+            self.logger.info(f"[QUEUE-PROCESS] Summary after processing: {processed_document.metadata.summary[:200] if processed_document.metadata.summary else 'NO SUMMARY'}...")
 
             # Save the processed document
+            self.logger.info(f"[QUEUE-PROCESS] Saving processed document {document_id} to storage")
             await doc_service.storage.save(processed_document)
+            self.logger.info(f"[QUEUE-PROCESS] Document {document_id} saved successfully")
 
             # Mark as completed in Redis queue
             await self.redis_queue.mark_completed(document_id)
@@ -651,17 +656,22 @@ class QueueService(BaseService):
                 from src.api.socketio_app import emit_document_updated
 
                 # Prepare document data for WebSocket
+                summary_to_send = processed_document.metadata.summary if processed_document.metadata.summary else None
+                self.logger.info(f"[QUEUE-PROCESS] Preparing WebSocket notification for {document_id}")
+                self.logger.info(f"[QUEUE-PROCESS] Summary in WebSocket payload: {summary_to_send[:200] if summary_to_send else 'NO SUMMARY'}...")
+
                 websocket_payload = {
                     "document_id": document_id,
                     "status": "completed",
                     "processing_status": "completed",
                     "metadata": {
                         "processing_stage": ProcessingStage.COMPLETED.value,
-                        "summary": processed_document.metadata.summary if processed_document.metadata.summary else None
+                        "summary": summary_to_send
                     }
                 }
 
                 await emit_document_updated(websocket_payload)
+                self.logger.info(f"[QUEUE-PROCESS] WebSocket notification sent for {document_id}")
                 logger.info(f"Emitted document:updated event for completed document {document_id}")
             except Exception as ws_error:
                 logger.warning(f"Failed to emit WebSocket update for document {document_id}: {ws_error}")

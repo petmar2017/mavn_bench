@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-06
 
+### Added
+
+- **Enhanced Processing Logging**: Added comprehensive logging throughout PDF document processing pipeline
+  - `[PDF-PROCESS]` logs track PDF conversion from file to markdown with character counts
+  - `[DOC-PROCESS]` logs track document processing flow and final summary generation
+  - `[SUMMARY-GEN]` logs track AI summary generation with detailed status at each step
+  - `[QUEUE-PROCESS]` logs track queue processing and WebSocket notifications
+  - All logs include document ID for easy tracing
+  - Summary content preview (first 100-200 characters) logged at key checkpoints
+  - Enables debugging of summary generation issues and processing flow
+
 ### Fixed
 
 - **Verbose Redis Storage Logging**: Reduced log noise by changing Redis storage operations from INFO to DEBUG level

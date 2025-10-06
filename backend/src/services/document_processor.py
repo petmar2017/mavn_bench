@@ -121,7 +121,10 @@ class DocumentProcessor(BaseService):
                 if progress_callback:
                     await progress_callback(70, "Generating metadata")
 
+                self.logger.info(f"[DOC-PROCESS] Starting metadata generation for {document.metadata.document_id}")
                 await self._generate_metadata(document)
+                self.logger.info(f"[DOC-PROCESS] Metadata generation complete for {document.metadata.document_id}")
+                self.logger.info(f"[DOC-PROCESS] Final summary: {document.metadata.summary[:200] if document.metadata.summary else 'NO SUMMARY'}...")
 
                 if progress_callback:
                     await progress_callback(100, "Processing complete")
@@ -146,6 +149,9 @@ class DocumentProcessor(BaseService):
         progress_callback: Optional[Callable] = None
     ):
         """Process PDF using PDFService"""
+        doc_id = document.metadata.document_id
+        self.logger.info(f"[PDF-PROCESS] Starting PDF processing for {doc_id}: {file_path}")
+
         if not self.pdf_service:
             self.pdf_service = ServiceFactory.create(ServiceType.PDF)
 
@@ -153,10 +159,17 @@ class DocumentProcessor(BaseService):
             await progress_callback(30, "Converting PDF to markdown")
 
         # Use existing PDFService method
+        self.logger.info(f"[PDF-PROCESS] Converting PDF to markdown for {doc_id}")
         markdown_content = await self.pdf_service.pdf_to_markdown(file_path)
+
+        content_length = len(markdown_content)
+        first_100_chars = markdown_content[:100] if markdown_content else "EMPTY"
+        self.logger.info(f"[PDF-PROCESS] PDF converted for {doc_id}: {content_length} characters")
+        self.logger.info(f"[PDF-PROCESS] First 100 chars: {first_100_chars}...")
 
         document.content.formatted_content = markdown_content
         document.content.raw_text = markdown_content
+        self.logger.info(f"[PDF-PROCESS] Content saved to document {doc_id}")
 
         if progress_callback:
             await progress_callback(60, "PDF conversion complete")
@@ -327,39 +340,53 @@ class DocumentProcessor(BaseService):
 
     async def _generate_metadata(self, document: DocumentMessage):
         """Generate summary and detect language"""
+        doc_id = document.metadata.document_id
+        self.logger.info(f"[SUMMARY-GEN] Starting metadata generation for document {doc_id}")
         self._ensure_services()
 
         if not self.llm_service:
             # Fallback if LLM is not available
+            self.logger.warning(f"[SUMMARY-GEN] No LLM service available for {doc_id}, using fallback")
             document.metadata.language = "en"
-            document.metadata.summary = self._generate_fallback_summary(document.content.raw_text)
+            fallback_summary = self._generate_fallback_summary(document.content.raw_text)
+            document.metadata.summary = fallback_summary
+            self.logger.info(f"[SUMMARY-GEN] Fallback summary for {doc_id}: {fallback_summary[:100]}...")
             return
 
         raw_text = document.content.raw_text or ""
+        text_length = len(raw_text)
+        self.logger.info(f"[SUMMARY-GEN] Document {doc_id} has {text_length} characters of raw text")
 
         try:
             # Detect language
+            self.logger.info(f"[SUMMARY-GEN] Detecting language for {doc_id}...")
             language_result = await asyncio.wait_for(
                 self.llm_service.detect_language(raw_text[:1000]),
                 timeout=10.0
             )
             document.metadata.language = language_result[0] if language_result else "en"
+            self.logger.info(f"[SUMMARY-GEN] Detected language for {doc_id}: {document.metadata.language}")
 
             # Generate summary
+            summary_input = raw_text[:3000]
+            self.logger.info(f"[SUMMARY-GEN] Generating AI summary for {doc_id} using {len(summary_input)} characters...")
             summary = await asyncio.wait_for(
                 self.llm_service.generate_summary(
-                    raw_text[:3000],
+                    summary_input,
                     max_length=100,
                     style="concise"
                 ),
                 timeout=20.0
             )
             document.metadata.summary = summary
+            self.logger.info(f"[SUMMARY-GEN] AI summary generated for {doc_id}: {summary[:150]}...")
 
         except Exception as e:
-            self.logger.warning(f"Metadata generation failed: {e}")
+            self.logger.error(f"[SUMMARY-GEN] Metadata generation failed for {doc_id}: {e}", exc_info=True)
             document.metadata.language = "en"
-            document.metadata.summary = self._generate_fallback_summary(raw_text)
+            fallback_summary = self._generate_fallback_summary(raw_text)
+            document.metadata.summary = fallback_summary
+            self.logger.info(f"[SUMMARY-GEN] Using fallback summary for {doc_id}: {fallback_summary[:100]}...")
 
     def _generate_fallback_summary(self, text: str) -> str:
         """Generate a simple fallback summary"""
