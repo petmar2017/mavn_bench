@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-06
 
+### Fixed
+
+- **PDF Summary Generation**: Fixed issue where PDF summaries showed first line of text instead of AI-generated summaries
+  - Root cause: Backend startup failures due to stale Python `.pyc` cache files preventing import of document_tools module
+  - Solution: Cleaned Python cache files to resolve `ImportError` in document_tools imports
+  - Backend now starts successfully and processes documents correctly
+  - Document processor generates proper AI summaries via LLM service for all uploaded PDFs
+  - WebSocket notifications correctly deliver completed summaries to frontend
+  - Processing flow verified: Upload → Queue → Process → AI Summary → WebSocket Update → Frontend Display
+
 ### Added
 
 - **Generic Tool System**: Implemented unified tool architecture supporting multiple tool types
