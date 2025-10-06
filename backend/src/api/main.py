@@ -68,6 +68,10 @@ async def lifespan(app: FastAPI):
         FastAPIInstrumentor().instrument_app(app)
         logger.info("OpenTelemetry instrumentation enabled")
 
+        # Configure OpenTelemetry logging to match centralized format
+        from ..core.uvicorn_config import configure_otel_logging
+        configure_otel_logging()
+
     # Initialize services
     from ..services.queue_service import queue_service
     from .routers.websocket import manager
@@ -257,10 +261,13 @@ async def internal_error_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
+    from ..core.uvicorn_config import get_uvicorn_log_config
+
     uvicorn.run(
         "src.api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=settings.debug,
-        log_level="info" if settings.debug else "warning"
+        log_level="info" if settings.debug else "warning",
+        log_config=get_uvicorn_log_config()
     )

@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Inconsistent Log Formatting**: Unified log formatting across all logging sources for consistent output
+  - Created custom `UvicornFormatter` in `src/core/uvicorn_config.py` matching `CentralizedLogger` format
+  - Configured uvicorn to use consistent timestamp, level, service name, and message formatting
+  - Configured OpenTelemetry SDK loggers to suppress transient connection errors and use unified format
+  - All logs now follow pattern: `HH:MM:SS | LEVEL | SERVICE | MESSAGE` with ANSI colors
+  - Created `run_server.py` script with proper logging configuration
+  - Updated Makefile `dev-backend` and `dev-backend-logs` targets to use new startup script
+  - Eliminates inconsistent formats between uvicorn, OpenTelemetry, and application logs
+
 - **Verbose Redis Storage Logging**: Reduced log noise by changing Redis storage operations from INFO to DEBUG level
   - Document load/save operations in Redis storage now only appear in debug mode
   - Eliminates repetitive storage operation logs flooding production console

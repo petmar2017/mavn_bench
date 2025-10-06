@@ -56,7 +56,7 @@ dev: ## Start development environment
 
 dev-backend: ## Start backend in development mode
 	@echo "$(YELLOW)Starting backend...$(NC)"
-	cd backend && test -f ./$(VENV)/bin/uvicorn && ./$(VENV)/bin/uvicorn src.api.main:app --reload --port 8000 --host 0.0.0.0 || echo "Backend not setup"
+	cd backend && test -f ./$(VENV)/bin/python && ./$(VENV)/bin/python run_server.py || echo "Backend not setup"
 
 dev-frontend: ## Start frontend in development mode
 	@echo "$(YELLOW)Starting frontend...$(NC)"
@@ -64,7 +64,7 @@ dev-frontend: ## Start frontend in development mode
 
 dev-backend-logs: ## Start backend with visible logs
 	@echo "$(YELLOW)Starting backend with logs...$(NC)"
-	cd backend && source $(VENV)/bin/activate && python -m uvicorn src.api.main:app --reload --port 8000 --host 0.0.0.0 --log-level debug
+	cd backend && source $(VENV)/bin/activate && python run_server.py
 
 dev-frontend-logs: ## Start frontend with visible logs
 	@echo "$(YELLOW)Starting frontend with logs...$(NC)"
