@@ -31,14 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Inconsistent Log Formatting**: Unified log formatting across all logging sources for consistent output
-  - Created custom `UvicornFormatter` in `src/core/uvicorn_config.py` matching `CentralizedLogger` format
-  - Configured uvicorn to use consistent timestamp, level, service name, and message formatting
-  - Configured OpenTelemetry SDK loggers to suppress transient connection errors and use unified format
-  - All logs now follow pattern: `HH:MM:SS | LEVEL | SERVICE | MESSAGE` with ANSI colors
+- **Inconsistent Log Formatting**: Unified log formatting across all logging sources for consistent dual output
+  - Created custom formatters in `src/core/uvicorn_config.py` matching `CentralizedLogger` pattern
+  - **Dual Output Mode** (default): Logs to both stdout (human-readable console) and stderr (JSON)
+    - Console format: `HH:MM:SS | LEVEL | SERVICE | MESSAGE` with ANSI colors
+    - JSON format: `{"timestamp": "...", "level": "...", "service": "...", "message": "...", "trace_id": "...", "span_id": "...", "user_id": null, "session_id": null}`
+  - **JSON-Only Mode**: Set `MAVN_LOG_JSON_ONLY=true` for production deployments
+  - Configured uvicorn with dual formatters (`UvicornConsoleFormatter` and `UvicornJsonFormatter`)
+  - Configured OpenTelemetry SDK loggers to suppress transient connection errors (set to ERROR level)
   - Created `run_server.py` script with proper logging configuration
   - Updated Makefile `dev-backend` and `dev-backend-logs` targets to use new startup script
   - Eliminates inconsistent formats between uvicorn, OpenTelemetry, and application logs
+  - Both stdout and stderr now provide consistent, parseable output for different use cases
 
 - **Verbose Redis Storage Logging**: Reduced log noise by changing Redis storage operations from INFO to DEBUG level
   - Document load/save operations in Redis storage now only appear in debug mode
