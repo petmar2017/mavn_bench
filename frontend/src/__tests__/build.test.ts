@@ -26,12 +26,12 @@ describe('Build Validation', () => {
     }
   });
 
-  it('should export Entity and EntityRelationship types', async () => {
-    const { Entity, EntityRelationship } = await import('../types/document');
+  it('should successfully import types module', async () => {
+    // Types are compile-time only, but we can verify the module imports successfully
+    const typesModule = await import('../types/document');
 
-    // Types should be available for type checking
-    expect(Entity).toBeDefined();
-    expect(EntityRelationship).toBeDefined();
+    // Module should export interfaces (available at compile time)
+    expect(typesModule).toBeDefined();
   });
 
   it('should export entityApi service', async () => {
