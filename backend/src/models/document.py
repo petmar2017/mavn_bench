@@ -104,6 +104,7 @@ class DocumentMetadata(BaseModel):
     mime_type: Optional[str] = None
     file_path: Optional[str] = Field(default=None, description="Path to original file if stored")
     entities: Optional[List[Dict[str, Any]]] = Field(default=None, description="Extracted entities from document")
+    relationships: Optional[List[Dict[str, Any]]] = Field(default=None, description="Entity relationships")
 
     # Soft delete fields
     deleted: bool = Field(default=False, description="Whether the document is soft deleted")

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Edit2, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
 import classNames from 'classnames';
 import { documentApi } from '../../services/api';
+import { entityApi } from '../../services/entityApi';
 import { logger } from '../../services/logging';
 import type { Entity } from '../../types/document';
 import styles from './EntitiesViewer.module.css';
@@ -23,12 +24,29 @@ export const EntitiesViewer: React.FC<EntitiesViewerProps> = ({
   const [groupedEntities, setGroupedEntities] = useState<Record<string, Entity[]>>({});
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [availableEntityTypes, setAvailableEntityTypes] = useState<string[]>([]);
+
+  // Fetch available entity types from API
+  useEffect(() => {
+    const fetchEntityTypes = async () => {
+      try {
+        const types = await entityApi.getEntityTypes();
+        setAvailableEntityTypes(types);
+      } catch (error) {
+        logger.error('Failed to fetch entity types', { error });
+        // Fallback to hardcoded types
+        setAvailableEntityTypes(['person', 'organization', 'location', 'date', 'money', 'unknown']);
+      }
+    };
+
+    fetchEntityTypes();
+  }, []);
 
   useEffect(() => {
     // Group entities by type
     const grouped: Record<string, Entity[]> = {};
     entities.forEach(entity => {
-      const type = entity.entity_type || 'UNKNOWN';
+      const type = entity.entity_type || 'unknown';
       if (!grouped[type]) {
         grouped[type] = [];
       }
@@ -166,9 +184,27 @@ export const EntitiesViewer: React.FC<EntitiesViewerProps> = ({
                               className={styles.input}
                             />
                           </div>
+                          {editedEntity.entity_type.toLowerCase() === 'date' && (
+                            <div className={styles.formRow}>
+                              <label>Date Value:</label>
+                              <input
+                                type="date"
+                                value={editedEntity.normalized_value || ''}
+                                onChange={(e) =>
+                                  setEditedEntity({
+                                    ...editedEntity,
+                                    normalized_value: e.target.value,
+                                  })
+                                }
+                                className={styles.input}
+                              />
+                            </div>
+                          )}
                           <div className={styles.formRow}>
                             <label>Type:</label>
-                            <select
+                            <input
+                              type="text"
+                              list="entity-types-datalist"
                               value={editedEntity.entity_type}
                               onChange={(e) =>
                                 setEditedEntity({
@@ -176,15 +212,16 @@ export const EntitiesViewer: React.FC<EntitiesViewerProps> = ({
                                   entity_type: e.target.value,
                                 })
                               }
-                              className={styles.select}
-                            >
-                              <option value="PERSON">Person</option>
-                              <option value="ORGANIZATION">Organization</option>
-                              <option value="LOCATION">Location</option>
-                              <option value="DATE">Date</option>
-                              <option value="MONEY">Money</option>
-                              <option value="UNKNOWN">Unknown</option>
-                            </select>
+                              className={styles.input}
+                              placeholder="Select or type entity type"
+                            />
+                            <datalist id="entity-types-datalist">
+                              {availableEntityTypes.map((type) => (
+                                <option key={type} value={type}>
+                                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                                </option>
+                              ))}
+                            </datalist>
                           </div>
                           <div className={styles.formRow}>
                             <label>Confidence:</label>
@@ -224,7 +261,14 @@ export const EntitiesViewer: React.FC<EntitiesViewerProps> = ({
                         </div>
                       ) : (
                         <div className={styles.entityContent}>
-                          <div className={styles.entityText}>{entity.text}</div>
+                          <div className={styles.entityText}>
+                            {entity.text}
+                            {entity.entity_type.toLowerCase() === 'date' && entity.normalized_value && (
+                              <span className={styles.normalizedDate}>
+                                {' '}({entity.normalized_value})
+                              </span>
+                            )}
+                          </div>
                           <div className={styles.entityMeta}>
                             <span className={styles.confidence}>
                               {(entity.confidence * 100).toFixed(0)}% confidence

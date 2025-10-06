@@ -19,7 +19,7 @@ from .dependencies import get_current_user
 from .middleware.auth import AuthMiddleware
 from .middleware.telemetry import TelemetryMiddleware
 from .middleware.error_handler import ErrorHandlerMiddleware
-from .routers import documents, queue, process, websocket, search, logs, tools
+from .routers import documents, queue, process, websocket, search, logs, tools, entities
 from .socketio_app import socket_app
 
 
@@ -136,7 +136,7 @@ app.include_router(process.router, prefix="/api/process", tags=["processing"])
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(websocket.router, prefix="/api", tags=["websocket"])
 app.include_router(logs.router, tags=["logging"])
-# TODO: Implement tools router
+app.include_router(entities.router, tags=["entities"])
 app.include_router(tools.router, prefix="/api", tags=["tools"])
 
 # Mount Socket.IO app at a specific path

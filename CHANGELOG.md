@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-06
 
+### Added
+
+- **Enhanced Entity System with Relationships**: Comprehensive entity extraction improvements with relationship support
+  - Created `backend/src/models/entity.py` with Entity, EntityRelationship, and DocumentEntities models
+  - Added entity_id field for unique entity identification and relationship tracking
+  - Added normalized_value field for consistent date formatting (ISO 8601: YYYY-MM-DD)
+  - Added relationships field to DocumentMetadata model for entity relationship storage
+  - Implemented 11 entity types: person, organization, location, date, money, product, event, email, phone, url, unknown
+  - Implemented 14 relationship types: works_for, employed_by, located_in, founded_by, founded, part_of, subsidiary_of, occurred_on, occurred_at, associated_with, mentions, owns, manages, member_of
+  - Created entity API endpoints at `/api/entities/types`, `/api/entities/relationship-types`, `/api/entities/document/{id}`
+  - Updated frontend Entity interface with entity_id, normalized_value, start_pos, end_pos fields
+  - Added EntityRelationship interface for relationship tracking
+  - Created `frontend/src/services/entityApi.ts` for entity API communication
+  - Enhanced EntitiesViewer component with:
+    - Dropdown entity types populated from API (with free text override using HTML5 datalist)
+    - Date picker for date entities with normalized value display
+    - Display normalized dates alongside original text for better consistency
+    - Real-time API fetching of available entity types and relationship types
+  - Comprehensive unit tests: 20 tests for entity models, 19 tests for entity extraction (39 total, 100% pass rate)
+
+- **Date Normalization in Entity Extraction**: Consistent date handling across the system
+  - Implemented date normalization using python-dateutil parser
+  - All extracted dates converted to ISO 8601 format (YYYY-MM-DD)
+  - Supports multiple input formats: "Jan 1, 2024", "January 15, 2024", "2024-03-20", "March 20, 2024", "12/31/2023", etc.
+  - Original text preserved while normalized value used for sorting/filtering
+  - Date picker UI component for editing entity dates
+
 ### Changed
 
 - **Fully Dynamic Tool and Provider Registration**: Eliminated all hardcoded imports in favor of decorator-based auto-discovery

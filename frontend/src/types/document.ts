@@ -37,8 +37,25 @@ export interface DocumentMetadata {
  * Represents a named entity extracted from document content
  */
 export interface Entity {
+  entity_id: string;
   text: string;
   entity_type: string;
+  confidence: number;
+  metadata?: Record<string, any>;
+  start_pos?: number;
+  end_pos?: number;
+  normalized_value?: string;
+}
+
+/**
+ * Entity relationship structure
+ * Represents a relationship between two entities
+ */
+export interface EntityRelationship {
+  relationship_id: string;
+  from_entity_id: string;
+  to_entity_id: string;
+  relationship_type: string;
   confidence: number;
   metadata?: Record<string, any>;
 }

@@ -119,6 +119,13 @@
   color: var(--color-text);
 }
 
+.normalizedDate {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  font-weight: normal;
+  font-style: italic;
+}
+
 .entityMeta {
   display: flex;
   align-items: center;
