@@ -7,12 +7,12 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# Create Socket.IO server with detailed logging
+# Create Socket.IO server with production logging
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins='*',
-    logger=True,  # Enable Socket.IO internal logging
-    engineio_logger=True  # Enable EngineIO internal logging
+    logger=False,  # Disable Socket.IO internal debug logging
+    engineio_logger=False  # Disable EngineIO internal debug logging
 )
 
 # Create Socket.IO ASGI app

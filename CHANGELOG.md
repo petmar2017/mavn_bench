@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **WebSocket Debug Logging**: Disabled verbose Socket.IO and EngineIO debug logging
+  - Changed `logger=True` to `logger=False` in socketio.AsyncServer configuration
+  - Changed `engineio_logger=True` to `engineio_logger=False`
+  - Eliminates noisy PING/PONG packet logs flooding the console
+  - Application-level WebSocket events still logged via custom logger
+  - Improves log readability and reduces log volume in production
+
 - **Document Summary WebSocket Notification**: Fixed issue where document summaries were not properly delivered to frontend
   - Root cause: WebSocket payload was constructed before AI summary generation, causing summary to be missing from initial notification
   - Solution: Added `emit_document_updated` WebSocket event after summary is generated and saved to database
