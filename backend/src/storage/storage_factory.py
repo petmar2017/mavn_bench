@@ -5,6 +5,7 @@ from enum import Enum
 
 from .base_storage import StorageAdapter, StorageError
 from .redis_storage import RedisStorage
+from .filesystem_storage import FilesystemStorage
 from ..core.logger import CentralizedLogger
 from ..core.config import get_settings
 
@@ -12,6 +13,7 @@ from ..core.config import get_settings
 class StorageType(str, Enum):
     """Supported storage backend types"""
     REDIS = "redis"
+    FILESYSTEM = "filesystem"
 
 
 class StorageFactory:
@@ -19,6 +21,7 @@ class StorageFactory:
 
     _storage_classes: Dict[StorageType, Type[StorageAdapter]] = {
         StorageType.REDIS: RedisStorage,
+        StorageType.FILESYSTEM: FilesystemStorage,
     }
 
     _instances: Dict[StorageType, StorageAdapter] = {}
@@ -78,6 +81,11 @@ class StorageFactory:
             if storage_type == StorageType.REDIS and "redis_url" not in kwargs:
                 settings = get_settings()
                 kwargs["redis_url"] = settings.storage.redis_url
+
+            # Apply default configuration for Filesystem
+            if storage_type == StorageType.FILESYSTEM and "base_path" not in kwargs:
+                settings = get_settings()
+                kwargs["base_path"] = settings.storage.filesystem_path
 
             instance = storage_class(**kwargs)
 

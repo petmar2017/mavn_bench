@@ -11,6 +11,7 @@ from functools import lru_cache
 class StorageConfig(BaseSettings):
     type: str = Field(default="redis", env="STORAGE_TYPE")
     redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
+    filesystem_path: str = Field(default="./document_store", env="FILESYSTEM_PATH")
 
 class DatabaseConfig(BaseSettings):
     type: str = Field(default="sqlite", env="DB_TYPE")

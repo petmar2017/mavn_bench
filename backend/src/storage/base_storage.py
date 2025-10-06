@@ -164,6 +164,69 @@ class StorageAdapter(ABC):
         """
         pass
 
+
+    @abstractmethod
+    async def save_file(
+        self,
+        document_id: str,
+        file_content: bytes,
+        extension: str = ""
+    ) -> str:
+        """Save original uploaded file to storage
+
+        Args:
+            document_id: Document ID
+            file_content: File content as bytes
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            Relative file path
+
+        Raises:
+            StorageError: If save fails
+        """
+        pass
+
+    @abstractmethod
+    async def get_file(
+        self,
+        document_id: str,
+        extension: str = ""
+    ) -> Optional[bytes]:
+        """Retrieve original uploaded file from storage
+
+        Args:
+            document_id: Document ID
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            File content as bytes, or None if not found
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        pass
+
+    @abstractmethod
+    async def delete_file(
+        self,
+        document_id: str,
+        extension: str = ""
+    ) -> bool:
+        """Delete original uploaded file from storage
+
+        Args:
+            document_id: Document ID
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            True if successful, False otherwise
+
+        Raises:
+            StorageError: If deletion fails
+        """
+        pass
+
     @contextmanager
     def traced_operation(self, operation_name: str, **attributes):
         """Create a traced operation context with automatic logging

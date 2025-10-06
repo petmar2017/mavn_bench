@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Generic Storage File Operations**: Extended all storage adapters with file operation support
+  - Added three abstract methods to `StorageAdapter`: `save_file()`, `get_file()`, `delete_file()`
+  - Implemented file operations in `RedisStorage` with base64 encoding and 10MB size limit
+  - Registered `FilesystemStorage` in `StorageFactory` with automatic configuration
+  - Added `filesystem_path` configuration setting (default: `./document_store`)
+  - Implemented comprehensive unit tests for Redis file operations (100% coverage)
+  - All storage adapters now support consistent file storage interface
+
 - **Original PDF File Viewing**: Display original uploaded PDF files in the document viewer
   - Added backend endpoint `/api/documents/{id}/file` to serve original PDF files
   - Extended FilesystemStorage with `save_file()`, `get_file()`, and `delete_file()` methods

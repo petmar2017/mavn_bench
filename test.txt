@@ -1,1 +1,6 @@
 python==3.13
+
+
+> /sc:analyze can you fix  - ⚠️ ValidateJSONTool has missing
+  dependency (jsonschema) but
+    this is non-blocking 

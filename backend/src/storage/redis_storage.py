@@ -71,6 +71,15 @@ class RedisStorage(StorageAdapter):
         """Get Redis key for document list"""
         return f"{self.key_prefix}:documents"
 
+
+    def _get_file_key(self, document_id: str, extension: str) -> str:
+        """Get Redis key for original file"""
+        return f"{self.key_prefix}:file:{document_id}{extension}"
+
+    def _get_file_info_key(self, document_id: str, extension: str) -> str:
+        """Get Redis key for file metadata"""
+        return f"{self.key_prefix}:file:{document_id}{extension}:info"
+
     async def save(self, document: DocumentMessage) -> bool:
         """Save a document to Redis"""
         with self.traced_operation("save", document_id=document.metadata.document_id):
@@ -487,3 +496,165 @@ class RedisStorage(StorageAdapter):
             await self.redis_client.close()
             self.redis_client = None
             self.logger.info("Closed Redis connection")
+
+
+    async def save_file(
+        self,
+        document_id: str,
+        file_content: bytes,
+        extension: str = ""
+    ) -> str:
+        """Save original uploaded file to Redis with base64 encoding
+
+        Args:
+            document_id: Document ID
+            file_content: File content as bytes
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            Relative file path
+
+        Raises:
+            StorageError: If save fails or file too large
+        """
+        with self.traced_operation("save_file", document_id=document_id):
+            await self._ensure_connected()
+
+            try:
+                # Enforce file size limit for Redis (10MB)
+                max_size = 10 * 1024 * 1024  # 10MB
+                if len(file_content) > max_size:
+                    raise StorageError(
+                        f"File too large for Redis storage: {len(file_content)} bytes "
+                        f"(max: {max_size} bytes). Use filesystem storage for large files."
+                    )
+
+                file_key = self._get_file_key(document_id, extension)
+                info_key = self._get_file_info_key(document_id, extension)
+
+                # Encode binary content as base64 for Redis storage
+                import base64
+                encoded_content = base64.b64encode(file_content).decode('utf-8')
+
+                # Create file metadata
+                file_info = {
+                    "size": len(file_content),
+                    "extension": extension,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "encoding": "base64"
+                }
+
+                # Use pipeline for atomic operations
+                pipe = self.redis_client.pipeline()
+
+                # Save file with TTL
+                pipe.setex(file_key, self.ttl_seconds, encoded_content)
+
+                # Save file info with TTL
+                pipe.setex(info_key, self.ttl_seconds, json.dumps(file_info))
+
+                # Execute pipeline
+                await pipe.execute()
+
+                relative_path = f"files/{document_id}{extension}"
+                self.logger.info(
+                    f"Saved file to Redis: {relative_path} "
+                    f"(size: {len(file_content)} bytes, TTL: {self.ttl_seconds}s)"
+                )
+                return relative_path
+
+            except RedisError as e:
+                self.logger.error(f"Failed to save file to Redis: {str(e)}")
+                raise StorageError(f"Redis file save failed: {str(e)}") from e
+
+    async def get_file(
+        self,
+        document_id: str,
+        extension: str = ""
+    ) -> Optional[bytes]:
+        """Retrieve original uploaded file from Redis
+
+        Args:
+            document_id: Document ID
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            File content as bytes, or None if not found
+
+        Raises:
+            StorageError: If retrieval fails
+        """
+        with self.traced_operation("get_file", document_id=document_id):
+            await self._ensure_connected()
+
+            try:
+                file_key = self._get_file_key(document_id, extension)
+
+                # Check if key exists (handles empty files)
+                exists = await self.redis_client.exists(file_key)
+                if not exists:
+                    self.logger.debug(f"File not found in Redis: {document_id}{extension}")
+                    return None
+
+                encoded_content = await self.redis_client.get(file_key)
+
+                # Decode base64 to binary (handles empty string)
+                import base64
+                file_content = base64.b64decode(encoded_content) if encoded_content else b""
+
+                # Refresh TTL on access
+                await self.redis_client.expire(file_key, self.ttl_seconds)
+
+                self.logger.info(
+                    f"Retrieved file from Redis: {document_id}{extension} "
+                    f"(size: {len(file_content)} bytes)"
+                )
+                return file_content
+
+            except Exception as e:
+                self.logger.error(f"Failed to retrieve file from Redis: {str(e)}")
+                raise StorageError(f"Redis file retrieval failed: {str(e)}") from e
+
+    async def delete_file(
+        self,
+        document_id: str,
+        extension: str = ""
+    ) -> bool:
+        """Delete original uploaded file from Redis
+
+        Args:
+            document_id: Document ID
+            extension: File extension (e.g., ".pdf")
+
+        Returns:
+            True if successful, False otherwise
+
+        Raises:
+            StorageError: If deletion fails
+        """
+        with self.traced_operation("delete_file", document_id=document_id):
+            await self._ensure_connected()
+
+            try:
+                file_key = self._get_file_key(document_id, extension)
+                info_key = self._get_file_info_key(document_id, extension)
+
+                # Delete file and info atomically
+                pipe = self.redis_client.pipeline()
+                pipe.delete(file_key)
+                pipe.delete(info_key)
+                results = await pipe.execute()
+
+                # Check if file was actually deleted (first delete operation)
+                deleted = bool(results[0])
+
+                if deleted:
+                    self.logger.info(f"Deleted file from Redis: {document_id}{extension}")
+                else:
+                    self.logger.debug(f"File not found for deletion: {document_id}{extension}")
+
+                return deleted
+
+            except RedisError as e:
+                self.logger.error(f"Failed to delete file from Redis: {str(e)}")
+                raise StorageError(f"Redis file delete failed: {str(e)}") from e
