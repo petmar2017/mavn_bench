@@ -1,28 +1,12 @@
-"""Provider implementations for various LLM models"""
+"""Provider implementations for various LLM models
 
-# Import all provider implementations to trigger decorator registration
-from .anthropic_providers import (
-    ClaudeSonnetProvider,
-    ClaudeHaikuProvider
-)
-from .openai_providers import (
-    GPT4OptimizedProvider,
-    GPT4MiniProvider,
-    TextEmbeddingSmallProvider,
-    TextEmbeddingLargeProvider
-)
-from .google_providers import (
-    GeminiProProvider,
-    GeminiFlashProvider
-)
+All providers are auto-discovered via decorator registration.
+Import this module to trigger decorator execution for all provider files.
 
-__all__ = [
-    'ClaudeSonnetProvider',
-    'ClaudeHaikuProvider',
-    'GPT4OptimizedProvider',
-    'GPT4MiniProvider',
-    'TextEmbeddingSmallProvider',
-    'TextEmbeddingLargeProvider',
-    'GeminiProProvider',
-    'GeminiFlashProvider'
-]
+Providers are registered using the @register_provider decorator and are
+automatically discovered during service initialization via scan_and_import_providers().
+"""
+
+# No explicit imports needed - providers are auto-discovered via decorators
+# The initialization system will scan this package and import all provider modules
+__all__ = []

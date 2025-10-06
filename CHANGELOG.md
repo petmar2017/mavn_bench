@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2025-10-06
 
+### Changed
+
+- **Fully Dynamic Tool and Provider Registration**: Eliminated all hardcoded imports in favor of decorator-based auto-discovery
+  - Removed hardcoded tool imports from `services/llm/tools/__init__.py` - now uses auto-discovery
+  - Removed hardcoded provider imports from `services/llm/providers/implementations/__init__.py` - now uses auto-discovery
+  - Added `scan_and_import_providers()` function for automatic provider module discovery
+  - Added `initialize_providers()` function for comprehensive provider system initialization
+  - New tools and providers now require ZERO manual registration - just add file with decorator
+  - Improved maintainability: adding new tools/providers requires no changes to `__init__.py` files
+  - System is now 100% dynamic with full decorator-based registration across all components
+
 ### Added
 
 - **Enhanced Processing Logging**: Added comprehensive logging throughout PDF document processing pipeline

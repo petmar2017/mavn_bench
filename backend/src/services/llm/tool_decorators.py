@@ -86,3 +86,79 @@ def auto_register_decorated_tools():
         count += 1
 
     return count
+
+
+def scan_and_import_tools(
+    package_path: str = "src.services.llm.tools"
+) -> List[str]:
+    """Scan and import all tool modules to trigger decorator registration
+
+    This function dynamically imports all tool modules in the specified package
+    to ensure their @register_tool decorators are executed.
+
+    Args:
+        package_path: Python package path containing tool modules
+
+    Returns:
+        List of imported module names
+    """
+    import importlib
+    from pathlib import Path
+
+    imported_modules = []
+
+    try:
+        # Get the tools directory
+        base_path = Path(__file__).parent / "tools"
+
+        if not base_path.exists():
+            return imported_modules
+
+        # Import all Python files ending with _tool.py
+        for file_path in base_path.glob("*_tool.py"):
+            if file_path.name.startswith("__"):
+                continue  # Skip __init__.py and __pycache__
+
+            module_name = file_path.stem
+            full_module_path = f"{package_path}.{module_name}"
+
+            try:
+                importlib.import_module(full_module_path)
+                imported_modules.append(full_module_path)
+            except ImportError as e:
+                # Log warning but continue with other modules
+                print(f"Warning: Could not import tool module {full_module_path}: {e}")
+
+    except Exception as e:
+        print(f"Error scanning tool modules: {e}")
+
+    return imported_modules
+
+
+def initialize_llm_tools() -> Dict[str, int]:
+    """Initialize the LLM tool system by scanning and registering all tools
+
+    This is the main initialization function that should be called during
+    application startup. It:
+    1. Scans for tool modules and imports them
+    2. Registers all decorated tools
+    3. Returns initialization statistics
+
+    Returns:
+        Dictionary with initialization statistics
+    """
+    # Scan and import tool modules
+    imported_modules = scan_and_import_tools()
+
+    # Register all decorated tools
+    registered_count = auto_register_decorated_tools()
+
+    # Get registry statistics
+    available_tools = ToolRegistry.get_available_tools()
+
+    return {
+        "imported_modules": imported_modules,
+        "imported_module_count": len(imported_modules),
+        "registered_tools": registered_count,
+        "total_tools": len(available_tools),
+    }

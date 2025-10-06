@@ -163,17 +163,16 @@ class LLMService(BaseService):
     def _register_tools(self):
         """Register all available LLM tools using auto-discovery"""
         try:
-            # Import all tool modules to trigger decorator registration
-            # This import will execute the @register_tool decorators
-            from .llm import tools  # noqa: F401
+            # Initialize LLM tools with automatic scanning and registration
+            from .llm.tool_decorators import initialize_llm_tools
 
-            # Auto-register all decorated tools
-            from .llm.tool_decorators import auto_register_decorated_tools
+            # Initialize the tool system - this will scan for tool modules and register them
+            init_stats = initialize_llm_tools()
 
-            # Register all tools that were decorated
-            num_registered = auto_register_decorated_tools()
-
-            self.logger.info(f"Auto-registered {num_registered} LLM tools via decorators")
+            self.logger.info(
+                f"Auto-registered {init_stats['registered_tools']} LLM tools via decorators "
+                f"from {init_stats['imported_module_count']} modules"
+            )
 
             # Log available tools for debugging
             available_tools = ToolRegistry.get_available_tools()

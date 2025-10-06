@@ -1,19 +1,12 @@
-"""LLM tools implementations"""
+"""LLM tools implementations
 
-from .summarization_tool import SummarizationTool
-from .markdown_tool import MarkdownFormattingTool
-from .entity_extraction_tool import EntityExtractionTool
-from .classification_tool import ClassificationTool
-from .language_detection_tool import LanguageDetectionTool
-from .question_answering_tool import QuestionAnsweringTool
-from .embedding_tool import EmbeddingTool
+All tools are auto-discovered via decorator registration.
+Import this module to trigger decorator execution for all tool files.
 
-__all__ = [
-    "SummarizationTool",
-    "MarkdownFormattingTool",
-    "EntityExtractionTool",
-    "ClassificationTool",
-    "LanguageDetectionTool",
-    "QuestionAnsweringTool",
-    "EmbeddingTool",
-]
+Tools are registered using the @register_tool decorator and are
+automatically discovered during service initialization.
+"""
+
+# No explicit imports needed - tools are auto-discovered via decorators
+# The service initialization will scan this package and import all tool modules
+__all__ = []
