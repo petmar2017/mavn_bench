@@ -4,7 +4,7 @@
  * Provides methods for interacting with entity-related API endpoints
  */
 
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from '../config/api.config';
 import { Entity, EntityRelationship } from '../types/document';
 
 export interface EntityTypesResponse {
